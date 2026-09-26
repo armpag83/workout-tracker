@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AddBox
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
@@ -30,7 +29,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Mantiene lo schermo sempre acceso durante l'uso dell'app
+        // Mantiene lo schermo sempre attivo durante l'uso dell'app
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         setContent {
@@ -106,7 +105,7 @@ fun WorkoutApp() {
                 actions = {
                     // Pulsante "Nuova scheda" nella TopBar
                     TextButton(onClick = { showNewDayDialog = true }) {
-                        Icon(Icons.Default.AddBox, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Nuova scheda", fontSize = 13.sp)
                     }
@@ -175,16 +174,13 @@ fun WorkoutApp() {
 
                 // Pulsante (+) Aggiungi accanto ai tab
                 IconButton(
-                    onClick = { showAddExerciseDialog = true },
-                    modifier = Modifier.align(Alignment.CenterVertically)
+                    onClick = { showAddExerciseDialog = true }
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = "Aggiungi Esercizio",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "Aggiungi Esercizio",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
 
