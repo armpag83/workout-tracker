@@ -19,20 +19,9 @@ object WorkoutCsvManager {
 
     val defaultCsvContent = """
         giorno,nome,muscoli,target,recupero,kg,note
-        Giorno 1: Spinta,Riscaldamento,Tapis roulant,5',3%,-,Ok percorso all'aperto
-        Giorno 1: Spinta,Squat Controllato,Gambe (Base),3 x 8,2',,
-        Giorno 1: Spinta,Distensioni Panca Inclinata Manubri,Petto,4 x 6-8,2',,
-        Giorno 1: Spinta,Alzate Laterali ai Cavi,Spalle,3 x 12,1',,
-        Giorno 1: Spinta,Leg Curl,Gambe (Posteriore),3 x 10-12,1'30",,
-        Giorno 1: Spinta,Pushdown ai Cavi con Corda,Tricipiti,3 x 10-12,1',,
-        Giorno 1: Spinta,Trazioni alla sbarra,Spalliera,A cedimento,1',,
-        Giorno 2: Trazione,Riscaldamento,Tapis roulant,5',3%,-,Ok percorso all'aperto
-        Giorno 2: Trazione,Trazioni / Lat Machine,Schiena,4 x 8-10,2',,
-        Giorno 2: Trazione,Pulley Basso,Schiena,3 x 10,1'30",,
-        Giorno 2: Trazione,Leg Extension,Gambe (Quadricipiti),3 x 12,1'30",,
-        Giorno 2: Trazione,Curl Bicipiti con Bilanciere,Bicipiti,3 x 10,1'30",,
-        Giorno 2: Trazione,Plank,Core,3 x 45",1',,
-        Giorno 2: Trazione,Trazioni alla sbarra,Spalliera,A cedimento,1',,
+        Giorno 1: Gambe,Riscaldamento,Tapis roulant,5',3%,,
+        Giorno 1: Gambe,Leg Extension,Quadricipiti,3 x 8,2',,
+        Giorno 1: Gambe,Leg Curl,Bicipiti femorali,3 x 8,2',,
     """.trimIndent()
 
     private fun getFile(context: Context): File {
