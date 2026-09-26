@@ -11,6 +11,11 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddBox
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,7 +30,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Mantiene lo schermo acceso durante l'uso
+        // Mantiene lo schermo sempre acceso durante l'uso dell'app
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         setContent {
@@ -45,12 +50,18 @@ fun WorkoutApp() {
     var showMenu by remember { mutableStateOf(false) }
     var showCsvEditorDialog by remember { mutableStateOf(false) }
 
-    // Ricava i giorni disponibili dinamicamente dal file CSV (es. "Giorno 1: Spinta", "Giorno 2: Trazione")
+    // Stati per i dialoghi di modifica, eliminazione, nuovo esercizio e nuova scheda
+    var exerciseToEdit by remember { mutableStateOf<Exercise?>(null) }
+    var exerciseToDelete by remember { mutableStateOf<Exercise?>(null) }
+    var showAddExerciseDialog by remember { mutableStateOf(false) }
+    var showNewDayDialog by remember { mutableStateOf(false) }
+
+    // Lista dinamica dei giorni
     val days = remember(exercises) {
-        exercises.map { it.giorno }.distinct().ifEmpty { listOf("Giorno 1") }
+        exercises.map { it.giorno }.distinct().ifEmpty { listOf("Giorno 1: Spinta") }
     }
 
-    // Picker per importare un file CSV esterno
+    // Launcher per Importazione/Esportazione CSV
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -73,7 +84,6 @@ fun WorkoutApp() {
         }
     }
 
-    // Picker per esportare la configurazione CSV su file
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
     ) { uri: Uri? ->
@@ -94,9 +104,18 @@ fun WorkoutApp() {
             TopAppBar(
                 title = { Text("Workout Tracker", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
                 actions = {
-                    TextButton(onClick = { showMenu = true }) {
-                        Text("⚙️ CSV")
+                    // Pulsante "Nuova scheda" nella TopBar
+                    TextButton(onClick = { showNewDayDialog = true }) {
+                        Icon(Icons.Default.AddBox, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Nuova scheda", fontSize = 13.sp)
                     }
+
+                    // Pulsante Menu CSV
+                    TextButton(onClick = { showMenu = true }) {
+                        Text("⚙️ CSV", fontSize = 13.sp)
+                    }
+
                     DropdownMenu(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
@@ -141,14 +160,31 @@ fun WorkoutApp() {
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Tab per i giorni dell'allenamento
-            TabRow(selectedTabIndex = selectedTab.coerceAtMost(days.size - 1)) {
+            // Barra dei Tab con pulsante "Aggiungi" esercizio
+            ScrollableTabRow(
+                selectedTabIndex = selectedTab.coerceAtMost(days.size - 1),
+                edgePadding = 8.dp
+            ) {
                 days.forEachIndexed { index, dayName ->
                     Tab(
                         selected = selectedTab == index,
                         onClick = { selectedTab = index },
                         text = { Text(dayName, fontSize = 13.sp) }
                     )
+                }
+
+                // Pulsante (+) Aggiungi accanto ai tab
+                IconButton(
+                    onClick = { showAddExerciseDialog = true },
+                    modifier = Modifier.align(Alignment.CenterVertically)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = "Aggiungi Esercizio",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
 
@@ -171,7 +207,9 @@ fun WorkoutApp() {
                             }
                             exercises = updatedList
                             WorkoutCsvManager.saveExercises(context, updatedList)
-                        }
+                        },
+                        onEditClick = { exerciseToEdit = exercise },
+                        onDeleteClick = { exerciseToDelete = exercise }
                     )
                 }
             }
@@ -181,7 +219,125 @@ fun WorkoutApp() {
         }
     }
 
-    // Dialog Editor Testuale CSV integrato
+    // --- DIALOGHI DI GESTIONE ---
+
+    // 1. Dialogo Modifica Esercizio Completa
+    exerciseToEdit?.let { ex ->
+        ExerciseFormDialog(
+            title = "Modifica Esercizio",
+            initialExercise = ex,
+            onDismiss = { exerciseToEdit = null },
+            onConfirm = { updated ->
+                val newList = exercises.map { if (it.id == updated.id) updated else it }
+                exercises = newList
+                WorkoutCsvManager.saveExercises(context, newList)
+                exerciseToEdit = null
+                Toast.makeText(context, "Esercizio aggiornato", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    // 2. Dialogo Conferma Eliminazione Esercizio
+    exerciseToDelete?.let { ex ->
+        AlertDialog(
+            onDismissRequest = { exerciseToDelete = null },
+            title = { Text("Conferma eliminazione") },
+            text = { Text("Sei sicuro di voler eliminare l'esercizio \"${ex.nome}\"?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val newList = exercises.filter { it.id != ex.id }
+                        exercises = newList
+                        WorkoutCsvManager.saveExercises(context, newList)
+                        exerciseToDelete = null
+                        Toast.makeText(context, "Esercizio eliminato", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Elimina")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { exerciseToDelete = null }) {
+                    Text("Annulla")
+                }
+            }
+        )
+    }
+
+    // 3. Dialogo Aggiungi Nuovo Esercizio alla scheda corrente
+    if (showAddExerciseDialog) {
+        val currentDay = days.getOrElse(selectedTab) { "Giorno 1" }
+        val newEx = Exercise(
+            id = "${currentDay}_${System.currentTimeMillis()}",
+            giorno = currentDay,
+            nome = "",
+            muscoli = "",
+            target = "",
+            recupero = ""
+        )
+        ExerciseFormDialog(
+            title = "Nuovo Esercizio ($currentDay)",
+            initialExercise = newEx,
+            onDismiss = { showAddExerciseDialog = false },
+            onConfirm = { created ->
+                val newList = exercises + created
+                exercises = newList
+                WorkoutCsvManager.saveExercises(context, newList)
+                showAddExerciseDialog = false
+                Toast.makeText(context, "Esercizio aggiunto", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    // 4. Dialogo Nuova Scheda / Giorno
+    if (showNewDayDialog) {
+        var newDayName by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showNewDayDialog = false },
+            title = { Text("Crea Nuova Scheda") },
+            text = {
+                OutlinedTextField(
+                    value = newDayName,
+                    onValueChange = { newDayName = it },
+                    label = { Text("Nome scheda (es. Giorno 3: Gambe)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newDayName.isNotBlank()) {
+                            val dummyEx = Exercise(
+                                id = "${newDayName}_${System.currentTimeMillis()}",
+                                giorno = newDayName.trim(),
+                                nome = "Riscaldamento",
+                                muscoli = "Generale",
+                                target = "5'",
+                                recupero = "1'"
+                            )
+                            val newList = exercises + dummyEx
+                            exercises = newList
+                            WorkoutCsvManager.saveExercises(context, newList)
+                            selectedTab = days.size // Passa alla nuova scheda
+                            showNewDayDialog = false
+                            Toast.makeText(context, "Nuova scheda creata!", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                ) {
+                    Text("Crea")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showNewDayDialog = false }) {
+                    Text("Annulla")
+                }
+            }
+        )
+    }
+
+    // 5. Editor CSV Testuale Integrato
     if (showCsvEditorDialog) {
         var rawCsvText by remember { mutableStateOf(WorkoutCsvManager.getRawCsv(context)) }
 
@@ -225,7 +381,12 @@ fun WorkoutApp() {
 }
 
 @Composable
-fun ExerciseCard(exercise: Exercise, onUpdate: (Exercise) -> Unit) {
+fun ExerciseCard(
+    exercise: Exercise,
+    onUpdate: (Exercise) -> Unit,
+    onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -233,12 +394,34 @@ fun ExerciseCard(exercise: Exercise, onUpdate: (Exercise) -> Unit) {
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text(text = exercise.nome, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Text(
-                text = "${exercise.muscoli} | Target: ${exercise.target} | Rec: ${exercise.recupero}",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.secondary
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = exercise.nome, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(
+                        text = "${exercise.muscoli} | Target: ${exercise.target} | Rec: ${exercise.recupero}",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+
+                // Icone di Modifica e Cancellazione
+                Row {
+                    IconButton(onClick = onEditClick) {
+                        Icon(Icons.Default.Edit, contentDescription = "Modifica Esercizio")
+                    }
+                    IconButton(onClick = onDeleteClick) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Elimina Esercizio",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -269,6 +452,101 @@ fun ExerciseCard(exercise: Exercise, onUpdate: (Exercise) -> Unit) {
             }
         }
     }
+}
+
+@Composable
+fun ExerciseFormDialog(
+    title: String,
+    initialExercise: Exercise,
+    onDismiss: () -> Unit,
+    onConfirm: (Exercise) -> Unit
+) {
+    var nome by remember { mutableStateOf(initialExercise.nome) }
+    var muscoli by remember { mutableStateOf(initialExercise.muscoli) }
+    var target by remember { mutableStateOf(initialExercise.target) }
+    var recupero by remember { mutableStateOf(initialExercise.recupero) }
+    var kg by remember { mutableStateOf(initialExercise.kg) }
+    var note by remember { mutableStateOf(initialExercise.note) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = nome,
+                    onValueChange = { nome = it },
+                    label = { Text("Nome Esercizio") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = muscoli,
+                    onValueChange = { muscoli = it },
+                    label = { Text("Muscoli (es. Petto)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = target,
+                        onValueChange = { target = it },
+                        label = { Text("Target (es. 4 x 8)") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = recupero,
+                        onValueChange = { recupero = it },
+                        label = { Text("Recupero (es. 2')") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = kg,
+                        onValueChange = { kg = it },
+                        label = { Text("Kg") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = note,
+                        onValueChange = { note = it },
+                        label = { Text("Note") },
+                        singleLine = true,
+                        modifier = Modifier.weight(2f)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (nome.isNotBlank()) {
+                        onConfirm(
+                            initialExercise.copy(
+                                nome = nome.trim(),
+                                muscoli = muscoli.trim(),
+                                target = target.trim(),
+                                recupero = recupero.trim(),
+                                kg = kg.trim(),
+                                note = note.trim()
+                            )
+                        )
+                    }
+                }
+            ) {
+                Text("Salva")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text("Annulla")
+            }
+        }
+    )
 }
 
 @Composable
