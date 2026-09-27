@@ -49,11 +49,13 @@ fun WorkoutApp() {
     var showMenu by remember { mutableStateOf(false) }
     var showCsvEditorDialog by remember { mutableStateOf(false) }
 
-    // Stati per i dialoghi di modifica, eliminazione, nuovo esercizio e nuova scheda
+    // Stati per la gestione dei dialoghi
     var exerciseToEdit by remember { mutableStateOf<Exercise?>(null) }
     var exerciseToDelete by remember { mutableStateOf<Exercise?>(null) }
     var showAddExerciseDialog by remember { mutableStateOf(false) }
     var showNewDayDialog by remember { mutableStateOf(false) }
+    var showDeleteDayDialog by remember { mutableStateOf(false) }
+    var showCsvAccessConfirmDialog by remember { mutableStateOf(false) }
 
     // Lista dinamica dei giorni
     val days = remember(exercises) {
@@ -110,8 +112,8 @@ fun WorkoutApp() {
                         Text("Nuova scheda", fontSize = 13.sp)
                     }
 
-                    // Pulsante Menu CSV
-                    TextButton(onClick = { showMenu = true }) {
+                    // Pulsante Menu CSV con richiesta di conferma
+                    TextButton(onClick = { showCsvAccessConfirmDialog = true }) {
                         Text("⚙️ CSV", fontSize = 13.sp)
                     }
 
@@ -172,7 +174,7 @@ fun WorkoutApp() {
                     )
                 }
 
-                // Pulsante (+) Aggiungi accanto ai tab
+                // Pulsante (+) Aggiungi esercizio
                 IconButton(
                     onClick = { showAddExerciseDialog = true }
                 ) {
@@ -208,6 +210,42 @@ fun WorkoutApp() {
                         onDeleteClick = { exerciseToDelete = exercise }
                     )
                 }
+
+                // Pulsante "Elimina intera scheda" in fondo agli allenamenti
+                if (currentDayName.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = { showDeleteDayDialog = true },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "Elimina intera scheda",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "Elimina intera scheda",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             // Pannello Cronometro fisso in basso
@@ -215,9 +253,63 @@ fun WorkoutApp() {
         }
     }
 
-    // --- DIALOGHI DI GESTIONE ---
+    // --- DIALOGHI DI CONFERMA E GESTIONE ---
 
-    // 1. Dialogo Modifica Esercizio Completa
+    // 1. Dialogo di conferma per accedere alla sezione CSV
+    if (showCsvAccessConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showCsvAccessConfirmDialog = false },
+            title = { Text("Gestione CSV") },
+            text = { Text("Vuoi accedere al menu di configurazione e modifica del file CSV?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showCsvAccessConfirmDialog = false
+                        showMenu = true
+                    }
+                ) {
+                    Text("Accedi")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showCsvAccessConfirmDialog = false }) {
+                    Text("Annulla")
+                }
+            }
+        )
+    }
+
+    // 2. Dialogo di conferma eliminazione dell'intera scheda
+    if (showDeleteDayDialog) {
+        val currentDayName = days.getOrElse(selectedTab) { "" }
+        AlertDialog(
+            onDismissRequest = { showDeleteDayDialog = false },
+            title = { Text("Conferma eliminazione scheda") },
+            text = { Text("Sei sicuro di voler eliminare l'intera scheda \"$currentDayName\" e tutti gli esercizi contenuti?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val newList = exercises.filter { it.giorno != currentDayName }
+                        exercises = newList
+                        WorkoutCsvManager.saveExercises(context, newList)
+                        selectedTab = 0
+                        showDeleteDayDialog = false
+                        Toast.makeText(context, "Scheda eliminata", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Elimina Scheda")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showDeleteDayDialog = false }) {
+                    Text("Annulla")
+                }
+            }
+        )
+    }
+
+    // 3. Dialogo Modifica Esercizio Completa
     exerciseToEdit?.let { ex ->
         ExerciseFormDialog(
             title = "Modifica Esercizio",
@@ -233,7 +325,7 @@ fun WorkoutApp() {
         )
     }
 
-    // 2. Dialogo Conferma Eliminazione Esercizio
+    // 4. Dialogo Conferma Eliminazione Singolo Esercizio
     exerciseToDelete?.let { ex ->
         AlertDialog(
             onDismissRequest = { exerciseToDelete = null },
@@ -261,7 +353,7 @@ fun WorkoutApp() {
         )
     }
 
-    // 3. Dialogo Aggiungi Nuovo Esercizio alla scheda corrente
+    // 5. Dialogo Aggiungi Nuovo Esercizio alla scheda corrente
     if (showAddExerciseDialog) {
         val currentDay = days.getOrElse(selectedTab) { "Giorno 1" }
         val newEx = Exercise(
@@ -286,7 +378,7 @@ fun WorkoutApp() {
         )
     }
 
-    // 4. Dialogo Nuova Scheda / Giorno
+    // 6. Dialogo Nuova Scheda / Giorno
     if (showNewDayDialog) {
         var newDayName by remember { mutableStateOf("") }
         AlertDialog(
@@ -316,7 +408,7 @@ fun WorkoutApp() {
                             val newList = exercises + dummyEx
                             exercises = newList
                             WorkoutCsvManager.saveExercises(context, newList)
-                            selectedTab = days.size // Passa alla nuova scheda
+                            selectedTab = days.size
                             showNewDayDialog = false
                             Toast.makeText(context, "Nuova scheda creata!", Toast.LENGTH_SHORT).show()
                         }
@@ -333,7 +425,7 @@ fun WorkoutApp() {
         )
     }
 
-    // 5. Editor CSV Testuale Integrato
+    // 7. Editor CSV Testuale Integrato
     if (showCsvEditorDialog) {
         var rawCsvText by remember { mutableStateOf(WorkoutCsvManager.getRawCsv(context)) }
 
@@ -404,7 +496,6 @@ fun ExerciseCard(
                     )
                 }
 
-                // Icone di Modifica e Cancellazione
                 Row {
                     IconButton(onClick = onEditClick) {
                         Icon(Icons.Default.Edit, contentDescription = "Modifica Esercizio")
