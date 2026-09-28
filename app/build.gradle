@@ -8,11 +8,18 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.example.workouttracker"
-        minSdk 24
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        applicationId = "com.example.workouttracker"
+        minSdk = 26
+        targetSdk = 34
+        
+        // INCREMENTA QUESTI DUE VALORI AD OGNI NUOVA BUILD
+        versionCode = 1          // Incrementa di 1 (es. 2, 3, 4...)
+        versionName = "1.0"    // Versione mostrata all'utente
+        
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        vectorDrawables {
+            useSupportLibrary = true
+        }
     }
 
     buildFeatures {
