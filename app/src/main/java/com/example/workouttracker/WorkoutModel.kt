@@ -1,4 +1,4 @@
-package com.example.workouttracker
+package it.armandopagliara.workouttracker
 
 import android.content.Context
 import java.io.File
