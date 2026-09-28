@@ -115,15 +115,26 @@ fun WorkoutApp() {
                             painter = painterResource(id = R.drawable.ic_launcher),
                             contentDescription = "Logo App",
                             modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(10.dp))
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Workout Tracker",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Column(
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = "Workout",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                lineHeight = 15.sp
+                            )
+                            Text(
+                                text = "Tracker",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                lineHeight = 15.sp
+                            )
+                        }
                     }
                 },
                 actions = {
