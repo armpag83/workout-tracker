@@ -12,9 +12,9 @@ android {
         minSdk = 26
         targetSdk = 34
         
-        // INCREMENTA QUESTI DUE VALORI AD OGNI NUOVA BUILD
-        versionCode = 1          // Incrementa di 1 (es. 2, 3, 4...)
-        versionName = "1.0"    // Versione mostrata all'utente
+        // INCREMENTARE QUESTI DUE VALORI AD OGNI NUOVA BUILD
+        versionCode = 2          // Incrementa di 1 (es. 2, 3, 4...)
+        versionName = "1.0.1"    // Versione mostrata all'utente
         
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
