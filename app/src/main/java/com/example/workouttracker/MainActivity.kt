@@ -8,9 +8,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -19,7 +21,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -103,16 +107,34 @@ fun WorkoutApp() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Workout Tracker", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_launcher),
+                            contentDescription = "Logo App",
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Workout Tracker",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
                 actions = {
-                    // Pulsante "Nuova scheda" nella TopBar
+                    // Pulsante "Nuova scheda"
                     TextButton(onClick = { showNewDayDialog = true }) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Nuova scheda", fontSize = 13.sp)
                     }
 
-                    // Pulsante Menu CSV con richiesta di conferma
+                    // Pulsante Menu CSV
                     TextButton(onClick = { showCsvAccessConfirmDialog = true }) {
                         Text("⚙️ CSV", fontSize = 13.sp)
                     }
@@ -161,7 +183,7 @@ fun WorkoutApp() {
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Barra dei Tab con pulsante "Aggiungi" esercizio
+            // Barra dei Tab
             ScrollableTabRow(
                 selectedTabIndex = selectedTab.coerceAtMost(days.size - 1),
                 edgePadding = 8.dp
@@ -174,7 +196,6 @@ fun WorkoutApp() {
                     )
                 }
 
-                // Pulsante (+) Aggiungi esercizio
                 IconButton(
                     onClick = { showAddExerciseDialog = true }
                 ) {
@@ -189,7 +210,7 @@ fun WorkoutApp() {
             val currentDayName = days.getOrElse(selectedTab) { "" }
             val currentList = exercises.filter { it.giorno == currentDayName }
 
-            // Lista degli esercizi scorrevole
+            // Lista degli esercizi
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -211,7 +232,6 @@ fun WorkoutApp() {
                     )
                 }
 
-                // Pulsante "Elimina intera scheda" in fondo agli allenamenti
                 if (currentDayName.isNotEmpty()) {
                     item {
                         Spacer(modifier = Modifier.height(12.dp))
@@ -248,14 +268,13 @@ fun WorkoutApp() {
                 }
             }
 
-            // Pannello Cronometro fisso in basso
+            // Cronometro in basso
             StopwatchPanel()
         }
     }
 
     // --- DIALOGHI DI CONFERMA E GESTIONE ---
 
-    // 1. Dialogo di conferma per accedere alla sezione CSV
     if (showCsvAccessConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showCsvAccessConfirmDialog = false },
@@ -279,7 +298,6 @@ fun WorkoutApp() {
         )
     }
 
-    // 2. Dialogo di conferma eliminazione dell'intera scheda
     if (showDeleteDayDialog) {
         val currentDayName = days.getOrElse(selectedTab) { "" }
         AlertDialog(
@@ -309,7 +327,6 @@ fun WorkoutApp() {
         )
     }
 
-    // 3. Dialogo Modifica Esercizio Completa
     exerciseToEdit?.let { ex ->
         ExerciseFormDialog(
             title = "Modifica Esercizio",
@@ -325,7 +342,6 @@ fun WorkoutApp() {
         )
     }
 
-    // 4. Dialogo Conferma Eliminazione Singolo Esercizio
     exerciseToDelete?.let { ex ->
         AlertDialog(
             onDismissRequest = { exerciseToDelete = null },
@@ -353,7 +369,6 @@ fun WorkoutApp() {
         )
     }
 
-    // 5. Dialogo Aggiungi Nuovo Esercizio alla scheda corrente
     if (showAddExerciseDialog) {
         val currentDay = days.getOrElse(selectedTab) { "Giorno 1" }
         val newEx = Exercise(
@@ -378,7 +393,6 @@ fun WorkoutApp() {
         )
     }
 
-    // 6. Dialogo Nuova Scheda / Giorno
     if (showNewDayDialog) {
         var newDayName by remember { mutableStateOf("") }
         AlertDialog(
@@ -425,7 +439,6 @@ fun WorkoutApp() {
         )
     }
 
-    // 7. Editor CSV Testuale Integrato
     if (showCsvEditorDialog) {
         var rawCsvText by remember { mutableStateOf(WorkoutCsvManager.getRawCsv(context)) }
 
