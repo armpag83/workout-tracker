@@ -1,4 +1,4 @@
-package com.example.workouttracker
+package it.armandopagliara.workouttracker
 
 import android.net.Uri
 import android.os.Bundle
