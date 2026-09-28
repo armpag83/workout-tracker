@@ -4,12 +4,12 @@ plugins {
 }
 
 android {
-    namespace 'com.example.workouttracker'
+    namespace 'it.armandopagliara.workouttracker'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.example.workouttracker"
-        minSdk 24
+        applicationId "it.armandopagliara.workouttracker"
+        minSdk 21
         targetSdk 34
         
         // Incrementati per consentire l'aggiornamento diretto senza disinstallazione
