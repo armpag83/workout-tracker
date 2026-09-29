@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,7 +50,10 @@ class MainActivity : ComponentActivity() {
 fun WorkoutApp() {
     val context = LocalContext.current
     var exercises by remember { mutableStateOf(WorkoutCsvManager.loadExercises(context)) }
-    var selectedTab by remember { mutableStateOf(0) }
+    
+    // Mantiene l'indice della scheda selezionata salvato anche dopo il riavvio o cambio app
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
+    
     var showMenu by remember { mutableStateOf(false) }
     var showCsvEditorDialog by remember { mutableStateOf(false) }
 
@@ -218,7 +222,7 @@ fun WorkoutApp() {
                 }
             }
 
-            val currentDayName = days.getOrElse(selectedTab) { "" }
+            val currentDayName = days.getOrElse(selectedTab.coerceAtMost(days.size - 1)) { "" }
             val currentList = exercises.filter { it.giorno == currentDayName }
 
             // Lista degli esercizi
@@ -231,13 +235,6 @@ fun WorkoutApp() {
                 items(currentList, key = { it.id }) { exercise ->
                     ExerciseCard(
                         exercise = exercise,
-                        onUpdate = { updatedEx ->
-                            val updatedList = exercises.map {
-                                if (it.id == updatedEx.id) updatedEx else it
-                            }
-                            exercises = updatedList
-                            WorkoutCsvManager.saveExercises(context, updatedList)
-                        },
                         onEditClick = { exerciseToEdit = exercise },
                         onDeleteClick = { exerciseToDelete = exercise }
                     )
@@ -310,7 +307,7 @@ fun WorkoutApp() {
     }
 
     if (showDeleteDayDialog) {
-        val currentDayName = days.getOrElse(selectedTab) { "" }
+        val currentDayName = days.getOrElse(selectedTab.coerceAtMost(days.size - 1)) { "" }
         AlertDialog(
             onDismissRequest = { showDeleteDayDialog = false },
             title = { Text("Conferma eliminazione scheda") },
@@ -381,7 +378,7 @@ fun WorkoutApp() {
     }
 
     if (showAddExerciseDialog) {
-        val currentDay = days.getOrElse(selectedTab) { "Giorno 1" }
+        val currentDay = days.getOrElse(selectedTab.coerceAtMost(days.size - 1)) { "Giorno 1" }
         val newEx = Exercise(
             id = "${currentDay}_${System.currentTimeMillis()}",
             giorno = currentDay,
@@ -495,7 +492,6 @@ fun WorkoutApp() {
 @Composable
 fun ExerciseCard(
     exercise: Exercise,
-    onUpdate: (Exercise) -> Unit,
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
@@ -534,32 +530,28 @@ fun ExerciseCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = exercise.kg,
-                    onValueChange = { newKg ->
-                        onUpdate(exercise.copy(kg = newKg))
-                    },
-                    label = { Text("Kg") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = exercise.note,
-                    onValueChange = { newNote ->
-                        onUpdate(exercise.copy(note = newNote))
-                    },
-                    label = { Text("Eseguite / Note") },
-                    modifier = Modifier.weight(2f),
-                    singleLine = true
-                )
+            if (exercise.kg.isNotBlank() || exercise.note.isNotBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    if (exercise.kg.isNotBlank()) {
+                        Text(
+                            text = "Kg: ${exercise.kg}",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    if (exercise.note.isNotBlank()) {
+                        Text(
+                            text = "Note: ${exercise.note}",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         }
     }
