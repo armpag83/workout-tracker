@@ -1,3 +1,4 @@
+// 1.1.0
 package it.armandopagliara.workouttracker
 
 import android.content.Context
@@ -82,9 +83,11 @@ object WorkoutCsvManager {
                 val nome = tokens.getOrElse(1) { "" }.trim()
                 val muscoli = tokens.getOrElse(2) { "" }.trim()
                 val target = tokens.getOrElse(3) { "" }.trim()
-                val recupero = tokens.getOrElse(4) { "" }.trim()
+                val rawRecupero = tokens.getOrElse(4) { "" }.trim()
                 val kg = tokens.getOrElse(5) { "" }.trim()
                 val note = tokens.getOrElse(6) { "" }.trim()
+
+                val validRecupero = if ((rawRecupero.toIntOrNull() ?: 0) > 0) rawRecupero else ""
 
                 if (giorno.isNotEmpty() && nome.isNotEmpty()) {
                     list.add(
@@ -94,7 +97,7 @@ object WorkoutCsvManager {
                             nome = nome,
                             muscoli = muscoli,
                             target = target,
-                            recupero = recupero,
+                            recupero = validRecupero,
                             kg = kg,
                             note = note
                         )

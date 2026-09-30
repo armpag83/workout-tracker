@@ -1,3 +1,4 @@
+// 1.1.0
 package it.armandopagliara.workouttracker
 
 import android.net.Uri
@@ -26,6 +27,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -49,10 +51,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// Funzione helper per formattare i secondi in minuti e secondi (es. 90 -> 1' 30")
+// Converte il tempo di recupero in formato leggibile (es. 90 -> 1' 30").
+// Se 0 o non numerico, restituisce stringa vuota.
 fun formatRecupero(recuperoStr: String): String {
-    val totalSec = recuperoStr.toIntOrNull() ?: return recuperoStr
-    if (totalSec <= 0) return "0\""
+    val totalSec = recuperoStr.toIntOrNull() ?: return ""
+    if (totalSec <= 0) return ""
     val m = totalSec / 60
     val s = totalSec % 60
     return when {
@@ -68,7 +71,7 @@ fun WorkoutApp() {
     val context = LocalContext.current
     var exercises by remember { mutableStateOf(WorkoutCsvManager.loadExercises(context)) }
     
-    // Mantiene l'indice della scheda selezionata salvato anche dopo sospensione
+    // Mantiene l'indice della scheda selezionata salvato
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     
     // Traccia l'esercizio attualmente evidenziato (tramite ID)
@@ -90,6 +93,10 @@ fun WorkoutApp() {
     val days = remember(exercises) {
         exercises.map { it.giorno }.distinct().ifEmpty { listOf("Giorno 1: Spinta") }
     }
+
+    // Calcola il tempo di recupero in secondi dell'esercizio eventualmente evidenziato
+    val selectedExercise = exercises.find { it.id == highlightedExerciseId }
+    val targetRecuperoSeconds = selectedExercise?.recupero?.toIntOrNull()?.takeIf { it > 0 }
 
     // Launcher per Importazione/Esportazione CSV
     val importLauncher = rememberLauncherForActivityResult(
@@ -219,7 +226,7 @@ fun WorkoutApp() {
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Barra dei Tab con Modifica del Nome
+            // Barra dei Tab
             ScrollableTabRow(
                 selectedTabIndex = selectedTab.coerceAtMost(days.size - 1),
                 edgePadding = 8.dp
@@ -323,14 +330,15 @@ fun WorkoutApp() {
                 }
             }
 
-            // Cronometro in basso
-            StopwatchPanel()
+            // Pannello Cronometro / Timer
+            StopwatchPanel(
+                targetRecuperoSeconds = targetRecuperoSeconds
+            )
         }
     }
 
     // --- DIALOGHI DI CONFERMA E GESTIONE ---
 
-    // Dialogo Rinomina Scheda
     if (showRenameDayDialog) {
         val currentDayName = days.getOrElse(selectedTab.coerceAtMost(days.size - 1)) { "" }
         var newDayName by remember { mutableStateOf(currentDayName) }
@@ -590,6 +598,15 @@ fun ExerciseCard(
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
+    // Assembla solo gli attributi non vuoti
+    val detailsList = mutableListOf<String>()
+    if (exercise.muscoli.isNotBlank()) detailsList.add(exercise.muscoli)
+    if (exercise.target.isNotBlank()) detailsList.add("Target: ${exercise.target}")
+    val formattedRec = formatRecupero(exercise.recupero)
+    if (formattedRec.isNotBlank()) detailsList.add("Recupero: $formattedRec")
+
+    val detailsText = detailsList.joinToString(" | ")
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -614,11 +631,13 @@ fun ExerciseCard(
                         fontSize = 16.sp,
                         color = if (isHighlighted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                     )
-                    Text(
-                        text = "${exercise.muscoli} | Target: ${exercise.target} | Recupero: ${formatRecupero(exercise.recupero)}",
-                        fontSize = 12.sp,
-                        color = if (isHighlighted) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.secondary
-                    )
+                    if (detailsText.isNotBlank()) {
+                        Text(
+                            text = detailsText,
+                            fontSize = 12.sp,
+                            color = if (isHighlighted) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.secondary
+                        )
+                    }
                 }
 
                 Row {
@@ -673,12 +692,9 @@ fun ExerciseFormDialog(
     var muscoli by remember { mutableStateOf(initialExercise.muscoli) }
     var target by remember { mutableStateOf(initialExercise.target) }
     
-    // Converte il campo recupero in stringa numerica pura per l'editing in secondi
     var recuperoSecText by remember {
-        mutableStateOf(
-            initialExercise.recupero.toIntOrNull()?.toString()
-                ?: initialExercise.recupero.replace("[^0-9]".toRegex(), "").ifEmpty { "0" }
-        )
+        val initialSec = initialExercise.recupero.toIntOrNull()
+        mutableStateOf(if (initialSec != null && initialSec > 0) initialSec.toString() else "")
     }
     var kg by remember { mutableStateOf(initialExercise.kg) }
     var note by remember { mutableStateOf(initialExercise.note) }
@@ -710,7 +726,6 @@ fun ExerciseFormDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Campo Recupero in secondi con stepper -5 e +5
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -719,7 +734,7 @@ fun ExerciseFormDialog(
                     OutlinedButton(
                         onClick = {
                             val current = recuperoSecText.toIntOrNull() ?: 0
-                            if (current >= 5) recuperoSecText = (current - 5).toString()
+                            if (current >= 5) recuperoSecText = (current - 5).toString() else recuperoSecText = ""
                         },
                         contentPadding = PaddingValues(horizontal = 8.dp)
                     ) {
@@ -770,13 +785,15 @@ fun ExerciseFormDialog(
             Button(
                 onClick = {
                     if (nome.isNotBlank()) {
-                        val secValue = recuperoSecText.toIntOrNull()?.toString() ?: "0"
+                        val secVal = recuperoSecText.toIntOrNull()
+                        val finalRecupero = if (secVal != null && secVal > 0) secVal.toString() else ""
+                        
                         onConfirm(
                             initialExercise.copy(
                                 nome = nome.trim(),
                                 muscoli = muscoli.trim(),
                                 target = target.trim(),
-                                recupero = secValue,
+                                recupero = finalRecupero,
                                 kg = kg.trim(),
                                 note = note.trim()
                             )
@@ -796,22 +813,74 @@ fun ExerciseFormDialog(
 }
 
 @Composable
-fun StopwatchPanel() {
-    var timeInSeconds by remember { mutableLongStateOf(0L) }
+fun StopwatchPanel(
+    targetRecuperoSeconds: Int?
+) {
+    var isTimerMode by remember { mutableStateOf(false) }
+    var timeInTenths by remember { mutableLongStateOf(0L) }
     var isRunning by remember { mutableStateOf(false) }
+    var isBlinking by remember { mutableStateOf(false) }
+    var blinkState by remember { mutableStateOf(false) }
 
-    LaunchedEffect(isRunning) {
-        while (isRunning) {
-            delay(1000L)
-            timeInSeconds++
+    // Reagisce ai cambiamenti del recupero dell'esercizio selezionato
+    LaunchedEffect(targetRecuperoSeconds) {
+        if (targetRecuperoSeconds != null && targetRecuperoSeconds > 0) {
+            isTimerMode = true
+            timeInTenths = targetRecuperoSeconds * 10L
+            isRunning = false
+            isBlinking = false
+        } else {
+            isTimerMode = false
+            timeInTenths = 0L
+            isRunning = false
+            isBlinking = false
         }
     }
 
-    val minutes = timeInSeconds / 60
-    val seconds = timeInSeconds % 60
-    val formattedTime = String.format("%02d:%02d", minutes, seconds)
+    // Timer / Cronometro con avanzamento ogni 100ms
+    LaunchedEffect(isRunning, isTimerMode) {
+        while (isRunning) {
+            delay(100L)
+            if (isTimerMode) {
+                if (timeInTenths > 0) {
+                    timeInTenths--
+                    if (timeInTenths == 0L) {
+                        isRunning = false
+                        isBlinking = true
+                    }
+                } else {
+                    isRunning = false
+                }
+            } else {
+                timeInTenths++
+            }
+        }
+    }
+
+    // Effetto lampeggiante al termine del conto alla rovescia (4 lampeggi veloci)
+    LaunchedEffect(isBlinking) {
+        if (isBlinking) {
+            repeat(4) {
+                blinkState = true
+                delay(250L)
+                blinkState = false
+                delay(250L)
+            }
+            isBlinking = false
+        }
+    }
+
+    // Formattazione del tempo in MM:SS.d
+    val minutes = (timeInTenths / 10) / 60
+    val seconds = (timeInTenths / 10) % 60
+    val tenths = timeInTenths % 10
+    val formattedTime = String.format("%02d:%02d.%d", minutes, seconds, tenths)
+
+    val containerColor = if (blinkState) Color(0xFFFF3300) else MaterialTheme.colorScheme.surface
+    val textColor = if (blinkState) Color.White else if (isTimerMode) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary
 
     Surface(
+        color = containerColor,
         tonalElevation = 8.dp,
         shadowElevation = 8.dp,
         modifier = Modifier.fillMaxWidth()
@@ -823,20 +892,32 @@ fun StopwatchPanel() {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = formattedTime,
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Column {
+                Text(
+                    text = formattedTime,
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textColor
+                )
+                if (isTimerMode) {
+                    Text(
+                        text = "Recupero (Timer)",
+                        fontSize = 11.sp,
+                        color = if (blinkState) Color.White else MaterialTheme.colorScheme.secondary
+                    )
+                }
+            }
 
             Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(
-                    onClick = { isRunning = true },
-                    enabled = !isRunning,
+                    onClick = {
+                        isBlinking = false
+                        isRunning = true
+                    },
+                    enabled = !isRunning && (!isTimerMode || timeInTenths > 0),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
                     Text("START", fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -856,7 +937,9 @@ fun StopwatchPanel() {
                 OutlinedButton(
                     onClick = {
                         isRunning = false
-                        timeInSeconds = 0L
+                        isBlinking = false
+                        isTimerMode = false
+                        timeInTenths = 0L
                     },
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
