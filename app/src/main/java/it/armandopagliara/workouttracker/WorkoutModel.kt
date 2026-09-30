@@ -19,9 +19,9 @@ object WorkoutCsvManager {
 
     val defaultCsvContent = """
         giorno,nome,muscoli,target,recupero,kg,note
-        Giorno 1: Gambe,Riscaldamento,Tapis roulant,5',3%,,
-        Giorno 1: Gambe,Leg Extension,Quadricipiti,3 x 8,2',,
-        Giorno 1: Gambe,Leg Curl,Bicipiti femorali,3 x 8,2',,
+        Giorno 1: Gambe,Riscaldamento,Tapis roulant,5',300,,
+        Giorno 1: Gambe,Leg Extension,Quadricipiti,3 x 8,120,,
+        Giorno 1: Gambe,Leg Curl,Bicipiti femorali,3 x 8,120,,
     """.trimIndent()
 
     private fun getFile(context: Context): File {

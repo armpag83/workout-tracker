@@ -8,11 +8,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -26,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
@@ -45,15 +49,31 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// Funzione helper per formattare i secondi in minuti e secondi (es. 90 -> 1' 30")
+fun formatRecupero(recuperoStr: String): String {
+    val totalSec = recuperoStr.toIntOrNull() ?: return recuperoStr
+    if (totalSec <= 0) return "0\""
+    val m = totalSec / 60
+    val s = totalSec % 60
+    return when {
+        m > 0 && s > 0 -> "${m}' ${s}\""
+        m > 0 -> "${m}'"
+        else -> "${s}\""
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkoutApp() {
     val context = LocalContext.current
     var exercises by remember { mutableStateOf(WorkoutCsvManager.loadExercises(context)) }
     
-    // Mantiene l'indice della scheda selezionata salvato anche dopo il riavvio o cambio app
+    // Mantiene l'indice della scheda selezionata salvato anche dopo sospensione
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     
+    // Traccia l'esercizio attualmente evidenziato (tramite ID)
+    var highlightedExerciseId by rememberSaveable { mutableStateOf<String?>(null) }
+
     var showMenu by remember { mutableStateOf(false) }
     var showCsvEditorDialog by remember { mutableStateOf(false) }
 
@@ -62,6 +82,7 @@ fun WorkoutApp() {
     var exerciseToDelete by remember { mutableStateOf<Exercise?>(null) }
     var showAddExerciseDialog by remember { mutableStateOf(false) }
     var showNewDayDialog by remember { mutableStateOf(false) }
+    var showRenameDayDialog by remember { mutableStateOf(false) }
     var showDeleteDayDialog by remember { mutableStateOf(false) }
     var showCsvAccessConfirmDialog by remember { mutableStateOf(false) }
 
@@ -82,6 +103,7 @@ fun WorkoutApp() {
                     if (WorkoutCsvManager.saveRawCsv(context, content)) {
                         exercises = WorkoutCsvManager.loadExercises(context)
                         selectedTab = 0
+                        highlightedExerciseId = null
                         Toast.makeText(context, "Configurazione importata!", Toast.LENGTH_SHORT).show()
                     } else {
                         Toast.makeText(context, "Formato CSV non valido", Toast.LENGTH_LONG).show()
@@ -142,14 +164,12 @@ fun WorkoutApp() {
                     }
                 },
                 actions = {
-                    // Pulsante "Nuova scheda"
                     TextButton(onClick = { showNewDayDialog = true }) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Nuova scheda", fontSize = 13.sp)
                     }
 
-                    // Pulsante Menu CSV
                     TextButton(onClick = { showCsvAccessConfirmDialog = true }) {
                         Text("⚙️ CSV", fontSize = 13.sp)
                     }
@@ -185,6 +205,7 @@ fun WorkoutApp() {
                                 showMenu = false
                                 exercises = WorkoutCsvManager.resetToDefault(context)
                                 selectedTab = 0
+                                highlightedExerciseId = null
                                 Toast.makeText(context, "Configurazione ripristinata", Toast.LENGTH_SHORT).show()
                             }
                         )
@@ -198,16 +219,37 @@ fun WorkoutApp() {
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Barra dei Tab
+            // Barra dei Tab con Modifica del Nome
             ScrollableTabRow(
                 selectedTabIndex = selectedTab.coerceAtMost(days.size - 1),
                 edgePadding = 8.dp
             ) {
                 days.forEachIndexed { index, dayName ->
+                    val isSelected = selectedTab == index
                     Tab(
-                        selected = selectedTab == index,
+                        selected = isSelected,
                         onClick = { selectedTab = index },
-                        text = { Text(dayName, fontSize = 13.sp) }
+                        text = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(dayName, fontSize = 13.sp)
+                                if (isSelected) {
+                                    IconButton(
+                                        onClick = { showRenameDayDialog = true },
+                                        modifier = Modifier.size(20.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Edit,
+                                            contentDescription = "Rinomina Scheda",
+                                            modifier = Modifier.size(14.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     )
                 }
 
@@ -233,8 +275,13 @@ fun WorkoutApp() {
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 items(currentList, key = { it.id }) { exercise ->
+                    val isHighlighted = exercise.id == highlightedExerciseId
                     ExerciseCard(
                         exercise = exercise,
+                        isHighlighted = isHighlighted,
+                        onCardClick = {
+                            highlightedExerciseId = if (isHighlighted) null else exercise.id
+                        },
                         onEditClick = { exerciseToEdit = exercise },
                         onDeleteClick = { exerciseToDelete = exercise }
                     )
@@ -283,6 +330,49 @@ fun WorkoutApp() {
 
     // --- DIALOGHI DI CONFERMA E GESTIONE ---
 
+    // Dialogo Rinomina Scheda
+    if (showRenameDayDialog) {
+        val currentDayName = days.getOrElse(selectedTab.coerceAtMost(days.size - 1)) { "" }
+        var newDayName by remember { mutableStateOf(currentDayName) }
+
+        AlertDialog(
+            onDismissRequest = { showRenameDayDialog = false },
+            title = { Text("Rinomina Scheda") },
+            text = {
+                OutlinedTextField(
+                    value = newDayName,
+                    onValueChange = { newDayName = it },
+                    label = { Text("Nome scheda") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val trimmed = newDayName.trim()
+                        if (trimmed.isNotBlank() && trimmed != currentDayName) {
+                            val newList = exercises.map {
+                                if (it.giorno == currentDayName) it.copy(giorno = trimmed) else it
+                            }
+                            exercises = newList
+                            WorkoutCsvManager.saveExercises(context, newList)
+                            showRenameDayDialog = false
+                            Toast.makeText(context, "Scheda rinominata!", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                ) {
+                    Text("Salva")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showRenameDayDialog = false }) {
+                    Text("Annulla")
+                }
+            }
+        )
+    }
+
     if (showCsvAccessConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showCsvAccessConfirmDialog = false },
@@ -319,6 +409,7 @@ fun WorkoutApp() {
                         exercises = newList
                         WorkoutCsvManager.saveExercises(context, newList)
                         selectedTab = 0
+                        highlightedExerciseId = null
                         showDeleteDayDialog = false
                         Toast.makeText(context, "Scheda eliminata", Toast.LENGTH_SHORT).show()
                     },
@@ -359,6 +450,7 @@ fun WorkoutApp() {
                 Button(
                     onClick = {
                         val newList = exercises.filter { it.id != ex.id }
+                        if (highlightedExerciseId == ex.id) highlightedExerciseId = null
                         exercises = newList
                         WorkoutCsvManager.saveExercises(context, newList)
                         exerciseToDelete = null
@@ -385,7 +477,7 @@ fun WorkoutApp() {
             nome = "",
             muscoli = "",
             target = "",
-            recupero = ""
+            recupero = "90"
         )
         ExerciseFormDialog(
             title = "Nuovo Esercizio ($currentDay)",
@@ -425,7 +517,7 @@ fun WorkoutApp() {
                                 nome = "Riscaldamento",
                                 muscoli = "Generale",
                                 target = "5'",
-                                recupero = "1'"
+                                recupero = "180"
                             )
                             val newList = exercises + dummyEx
                             exercises = newList
@@ -470,6 +562,7 @@ fun WorkoutApp() {
                         if (WorkoutCsvManager.saveRawCsv(context, rawCsvText)) {
                             exercises = WorkoutCsvManager.loadExercises(context)
                             selectedTab = 0
+                            highlightedExerciseId = null
                             showCsvEditorDialog = false
                             Toast.makeText(context, "CSV Salvato!", Toast.LENGTH_SHORT).show()
                         } else {
@@ -492,14 +585,21 @@ fun WorkoutApp() {
 @Composable
 fun ExerciseCard(
     exercise: Exercise,
+    isHighlighted: Boolean,
+    onCardClick: () -> Unit,
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            .padding(vertical = 6.dp)
+            .clickable { onCardClick() },
+        colors = CardDefaults.cardColors(
+            containerColor = if (isHighlighted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+        ),
+        border = if (isHighlighted) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isHighlighted) 6.dp else 2.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
@@ -508,11 +608,16 @@ fun ExerciseCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = exercise.nome, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Text(
-                        text = "${exercise.muscoli} | Target: ${exercise.target} | Rec: ${exercise.recupero}",
+                        text = exercise.nome,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = if (isHighlighted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "${exercise.muscoli} | Target: ${exercise.target} | Recupero: ${formatRecupero(exercise.recupero)}",
                         fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.secondary
+                        color = if (isHighlighted) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.secondary
                     )
                 }
 
@@ -567,7 +672,14 @@ fun ExerciseFormDialog(
     var nome by remember { mutableStateOf(initialExercise.nome) }
     var muscoli by remember { mutableStateOf(initialExercise.muscoli) }
     var target by remember { mutableStateOf(initialExercise.target) }
-    var recupero by remember { mutableStateOf(initialExercise.recupero) }
+    
+    // Converte il campo recupero in stringa numerica pura per l'editing in secondi
+    var recuperoSecText by remember {
+        mutableStateOf(
+            initialExercise.recupero.toIntOrNull()?.toString()
+                ?: initialExercise.recupero.replace("[^0-9]".toRegex(), "").ifEmpty { "0" }
+        )
+    }
     var kg by remember { mutableStateOf(initialExercise.kg) }
     var note by remember { mutableStateOf(initialExercise.note) }
 
@@ -590,22 +702,52 @@ fun ExerciseFormDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = target,
+                    onValueChange = { target = it },
+                    label = { Text("Target (es. 4 x 8)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Campo Recupero in secondi con stepper -5 e +5
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            val current = recuperoSecText.toIntOrNull() ?: 0
+                            if (current >= 5) recuperoSecText = (current - 5).toString()
+                        },
+                        contentPadding = PaddingValues(horizontal = 8.dp)
+                    ) {
+                        Text("-5")
+                    }
+
                     OutlinedTextField(
-                        value = target,
-                        onValueChange = { target = it },
-                        label = { Text("Target (es. 4 x 8)") },
+                        value = recuperoSecText,
+                        onValueChange = { input ->
+                            if (input.all { it.isDigit() }) recuperoSecText = input
+                        },
+                        label = { Text("Recupero (sec)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         modifier = Modifier.weight(1f)
                     )
-                    OutlinedTextField(
-                        value = recupero,
-                        onValueChange = { recupero = it },
-                        label = { Text("Recupero (es. 2')") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
+
+                    OutlinedButton(
+                        onClick = {
+                            val current = recuperoSecText.toIntOrNull() ?: 0
+                            recuperoSecText = (current + 5).toString()
+                        },
+                        contentPadding = PaddingValues(horizontal = 8.dp)
+                    ) {
+                        Text("+5")
+                    }
                 }
+
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = kg,
@@ -628,12 +770,13 @@ fun ExerciseFormDialog(
             Button(
                 onClick = {
                     if (nome.isNotBlank()) {
+                        val secValue = recuperoSecText.toIntOrNull()?.toString() ?: "0"
                         onConfirm(
                             initialExercise.copy(
                                 nome = nome.trim(),
                                 muscoli = muscoli.trim(),
                                 target = target.trim(),
-                                recupero = recupero.trim(),
+                                recupero = secValue,
                                 kg = kg.trim(),
                                 note = note.trim()
                             )
