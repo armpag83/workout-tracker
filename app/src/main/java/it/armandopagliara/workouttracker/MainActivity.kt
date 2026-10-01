@@ -1,6 +1,8 @@
 package it.armandopagliara.workouttracker
 
 import android.content.Context
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.net.Uri
 import android.os.Bundle
 import android.view.WindowManager
@@ -798,29 +800,34 @@ fun ExerciseFormDialog(
     )
 }
 
-/** Pannello Cronometro / Timer con precisione al decimo di secondo */
+/** Pannello Cronometro / Timer con precisione al decimo di secondo, allarme acustico e reset intelligenti */
 @Composable
 fun StopwatchPanel(targetRecuperoSeconds: Int?) {
+    val context = LocalContext.current
     var isTimerMode by remember { mutableStateOf(false) }
     var timeInTenths by remember { mutableLongStateOf(0L) }
     var isRunning by remember { mutableStateOf(false) }
     var isBlinking by remember { mutableStateOf(false) }
     var blinkState by remember { mutableStateOf(false) }
+    
+    // Stato per attivare/disattivare l'allarme sonoro (memorizzato durante l'uso)
+    var isSoundEnabled by rememberSaveable { mutableStateOf(true) }
 
+    // Sincronizzazione automatica all'evidenziazione di un esercizio
     LaunchedEffect(targetRecuperoSeconds) {
+        isRunning = false
+        isBlinking = false
+        blinkState = false
         if (targetRecuperoSeconds != null && targetRecuperoSeconds > 0) {
             isTimerMode = true
             timeInTenths = targetRecuperoSeconds * 10L
-            isRunning = false
-            isBlinking = false
         } else {
             isTimerMode = false
             timeInTenths = 0L
-            isRunning = false
-            isBlinking = false
         }
     }
 
+    // Avanzamento/Conto alla rovescia ogni decimo di secondo
     LaunchedEffect(isRunning, isTimerMode) {
         while (isRunning) {
             delay(100L)
@@ -840,15 +847,31 @@ fun StopwatchPanel(targetRecuperoSeconds: Int?) {
         }
     }
 
+    // Gestione avviso visivo (lampeggio) ed effetto sonoro di fine recupero
     LaunchedEffect(isBlinking) {
         if (isBlinking) {
-            repeat(4) {
-                blinkState = true
-                delay(250L)
-                blinkState = false
-                delay(250L)
+            // Riproduce il suono di allarme se attivo
+            if (isSoundEnabled) {
+                try {
+                    val toneGen = ToneGenerator(AudioManager.STREAM_ALARM, 100)
+                    toneGen.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_OR_VOLUMED_ACK, 500)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
-            isBlinking = false
+
+            // Blocco try-finally per prevenire blocchi sul colore rosso
+            try {
+                repeat(4) {
+                    blinkState = true
+                    delay(250L)
+                    blinkState = false
+                    delay(250L)
+                }
+            } finally {
+                blinkState = false
+                isBlinking = false
+            }
         }
     }
 
@@ -857,6 +880,7 @@ fun StopwatchPanel(targetRecuperoSeconds: Int?) {
     val tenths = timeInTenths % 10
     val formattedTime = String.format("%02d:%02d.%d", minutes, seconds, tenths)
 
+    // Colori dinamici dello sfondo e del testo
     val containerColor = if (blinkState) Color(0xFFFF3300) else MaterialTheme.colorScheme.surface
     val textColor = if (blinkState) Color.White else if (isTimerMode) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary
 
@@ -867,12 +891,35 @@ fun StopwatchPanel(targetRecuperoSeconds: Int?) {
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column {
-                Text(text = formattedTime, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = textColor)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = formattedTime,
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = textColor
+                    )
+
+                    // Pulsante di attivazione/disattivazione allarme sonoro
+                    IconButton(
+                        onClick = { isSoundEnabled = !isSoundEnabled },
+                        modifier = Modifier
+                            .padding(start = 4.dp)
+                            .size(32.dp)
+                    ) {
+                        Text(
+                            text = if (isSoundEnabled) "🔔" else "🔕",
+                            fontSize = 18.sp
+                        )
+                    }
+                }
+
                 if (isTimerMode) {
                     Text(
                         text = "Recupero (Timer)",
@@ -882,29 +929,54 @@ fun StopwatchPanel(targetRecuperoSeconds: Int?) {
                 }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Button(
-                    onClick = { isBlinking = false; isRunning = true },
+                    onClick = {
+                        isBlinking = false
+                        blinkState = false
+                        isRunning = true
+                    },
                     enabled = !isRunning && (!isTimerMode || timeInTenths > 0),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                ) { Text("START", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                ) {
+                    Text("START", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
 
                 Button(
-                    onClick = { isRunning = false },
+                    onClick = {
+                        isRunning = false
+                        isBlinking = false
+                        blinkState = false
+                    },
                     enabled = isRunning,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                ) { Text("STOP", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                ) {
+                    Text("STOP", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
 
                 OutlinedButton(
                     onClick = {
                         isRunning = false
                         isBlinking = false
-                        isTimerMode = false
-                        timeInTenths = 0L
+                        blinkState = false
+
+                        // Ripristina il tempo di recupero se in modalità timer
+                        if (targetRecuperoSeconds != null && targetRecuperoSeconds > 0) {
+                            isTimerMode = true
+                            timeInTenths = targetRecuperoSeconds * 10L
+                        } else {
+                            isTimerMode = false
+                            timeInTenths = 0L
+                        }
                     },
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                ) { Text("RST", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                ) {
+                    Text("RST", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
