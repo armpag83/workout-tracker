@@ -301,13 +301,18 @@ fun WorkoutApp() {
         }
     }
 
-    // --- TUTORIAL / ONBOARDING DI BENVENUTO ---
+// --- TUTORIAL / ONBOARDING DI BENVENUTO ---
     if (showWelcomeTutorial) {
         WelcomeTutorialDialog(
             versionName = currentAppVersion,
+            initialDontShowAgain = lastSeenVersion == currentAppVersion,
             onDismiss = { dontShowAgain ->
                 if (dontShowAgain) {
+                    // Salva la versione corrente per non ripresentare il popup
                     sharedPrefs.edit().putString("last_seen_version", currentAppVersion).apply()
+                } else {
+                    // Rimuove la preferenza: verrà mostrato di nuovo all'apertura o all'aggiornamento
+                    sharedPrefs.edit().remove("last_seen_version").apply()
                 }
                 showWelcomeTutorial = false
             }
@@ -535,20 +540,21 @@ fun WorkoutApp() {
     }
 }
 
-/** Componente per il tutorial/onboarding di benvenuto */
+/** Componente per il tutorial/onboarding di benvenuto e guida all'uso */
 @Composable
 fun WelcomeTutorialDialog(
     versionName: String,
+    initialDontShowAgain: Boolean = true,
     onDismiss: (dontShowAgain: Boolean) -> Unit
 ) {
-    var dontShowAgain by remember { mutableStateOf(true) }
+    var dontShowAgain by remember { mutableStateOf(initialDontShowAgain) }
 
     AlertDialog(
         onDismissRequest = { onDismiss(dontShowAgain) },
         title = {
             Column {
                 Text(text = "Benvenuto in Workout Tracker!", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text(text = "Novità e guida versione $versionName", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                Text(text = "Guida e novità versione $versionName", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
             }
         },
         text = {
@@ -558,13 +564,14 @@ fun WelcomeTutorialDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(text = "Ecco le funzionalità principali dell'applicazione:", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Text(text = "Funzionalità dell'applicazione:", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 
-                Text(text = "• 📋 Schede Personalizzate: Crea, modifica e naviga facilmente tra le tue schede di allenamento.", fontSize = 13.sp)
-                Text(text = "• 🎯 Selezione Esercizio: Tocca un esercizio per evidenziarlo durante la serie corrente.", fontSize = 13.sp)
-                Text(text = "• ⏱️ Timer Intelligente: Toccando un esercizio con recupero impostato, il cronometro si trasforma in un conto alla rovescia automatico con segnale visivo di fine tempo.", fontSize = 13.sp)
-                Text(text = "• ✏️ Modifica Facile: Modifica carico, note o tempi tramite l'icona della matita.", fontSize = 13.sp)
-                Text(text = "• 💾 Backup CSV: Esporta o importa la tua scheda in formato CSV per non perdere mai i tuoi dati.", fontSize = 13.sp)
+                Text(text = "• 📋 Schede Personalizzate: Crea, rinomina e naviga facilmente tra le tue schede.", fontSize = 13.sp)
+                Text(text = "• 🎯 Selezione Esercizio: Tocca un esercizio per evidenziarlo durante la serie.", fontSize = 13.sp)
+                Text(text = "• ⏱️ Timer & Reset Intelligente: Tocca un esercizio con recupero per attivare il conto alla rovescia. Il tasto RST ripristina il tempo di recupero anziché azzerarlo.", fontSize = 13.sp)
+                Text(text = "• 🔔 Allarme Visivo e Acustico: Allo scadere del tempo lo schermo lampeggia 5 volte con un bip sonoro. In modalità Timer puoi silenziarlo con l'icona 🔔/🔕.", fontSize = 13.sp)
+                Text(text = "• ✏️ Modifica Dati: Modifica carico (Kg), note o target con la matita.", fontSize = 13.sp)
+                Text(text = "• 💾 Import/Export CSV: Gestisci i backup della tua scheda in formato CSV.", fontSize = 13.sp)
 
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -582,7 +589,7 @@ fun WelcomeTutorialDialog(
         },
         confirmButton = {
             Button(onClick = { onDismiss(dontShowAgain) }) {
-                Text("Inizia Allenamento")
+                Text("Chiudi")
             }
         }
     )
@@ -800,7 +807,7 @@ fun ExerciseFormDialog(
     )
 }
 
-/** Pannello Cronometro / Timer con precisione al decimo di secondo, allarme acustico e reset intelligenti */
+/** Pannello Cronometro / Timer con allarme a 5 lampeggi/bip sincronizzati e toggle audio condizionale */
 @Composable
 fun StopwatchPanel(targetRecuperoSeconds: Int?) {
     val context = LocalContext.current
@@ -810,7 +817,7 @@ fun StopwatchPanel(targetRecuperoSeconds: Int?) {
     var isBlinking by remember { mutableStateOf(false) }
     var blinkState by remember { mutableStateOf(false) }
     
-    // Stato per attivare/disattivare l'allarme sonoro (memorizzato durante l'uso)
+    // Stato per attivare/disattivare l'allarme sonoro
     var isSoundEnabled by rememberSaveable { mutableStateOf(true) }
 
     // Sincronizzazione automatica all'evidenziazione di un esercizio
@@ -847,28 +854,26 @@ fun StopwatchPanel(targetRecuperoSeconds: Int?) {
         }
     }
 
-// Gestione avviso visivo (lampeggio) ed effetto sonoro di fine recupero
+    // Gestione avviso visivo e sonoro (5 lampeggi sincronizzati con 5 bip ad alta frequenza)
     LaunchedEffect(isBlinking) {
         if (isBlinking) {
-            // Riproduce il suono di allarme se attivo
-            if (isSoundEnabled) {
-                try {
-                    val toneGen = ToneGenerator(AudioManager.STREAM_ALARM, 100)
-                    toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 500)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-
-            // Blocco try-finally per prevenire blocchi sul colore rosso
+            var toneGen: ToneGenerator? = null
             try {
-                repeat(4) {
+                if (isSoundEnabled) {
+                    toneGen = ToneGenerator(AudioManager.STREAM_ALARM, 100)
+                }
+                repeat(5) {
                     blinkState = true
+                    // TONE_PROP_BEEP2 riproduce un tono ad un'ottava/frequenza superiore
+                    toneGen?.startTone(ToneGenerator.TONE_PROP_BEEP2, 150)
                     delay(250L)
                     blinkState = false
                     delay(250L)
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
             } finally {
+                toneGen?.release()
                 blinkState = false
                 isBlinking = false
             }
@@ -880,7 +885,6 @@ fun StopwatchPanel(targetRecuperoSeconds: Int?) {
     val tenths = timeInTenths % 10
     val formattedTime = String.format("%02d:%02d.%d", minutes, seconds, tenths)
 
-    // Colori dinamici dello sfondo e del testo
     val containerColor = if (blinkState) Color(0xFFFF3300) else MaterialTheme.colorScheme.surface
     val textColor = if (blinkState) Color.White else if (isTimerMode) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary
 
@@ -906,17 +910,19 @@ fun StopwatchPanel(targetRecuperoSeconds: Int?) {
                         color = textColor
                     )
 
-                    // Pulsante di attivazione/disattivazione allarme sonoro
-                    IconButton(
-                        onClick = { isSoundEnabled = !isSoundEnabled },
-                        modifier = Modifier
-                            .padding(start = 4.dp)
-                            .size(32.dp)
-                    ) {
-                        Text(
-                            text = if (isSoundEnabled) "🔔" else "🔕",
-                            fontSize = 18.sp
-                        )
+                    // Mostra la campanella SOLO in modalità Timer
+                    if (isTimerMode) {
+                        IconButton(
+                            onClick = { isSoundEnabled = !isSoundEnabled },
+                            modifier = Modifier
+                                .padding(start = 4.dp)
+                                .size(32.dp)
+                        ) {
+                            Text(
+                                text = if (isSoundEnabled) "🔔" else "🔕",
+                                fontSize = 18.sp
+                            )
+                        }
                     }
                 }
 
@@ -964,7 +970,7 @@ fun StopwatchPanel(targetRecuperoSeconds: Int?) {
                         isBlinking = false
                         blinkState = false
 
-                        // Ripristina il tempo di recupero se in modalità timer
+                        // Ripristina il tempo di recupero target se in modalità timer
                         if (targetRecuperoSeconds != null && targetRecuperoSeconds > 0) {
                             isTimerMode = true
                             timeInTenths = targetRecuperoSeconds * 10L
