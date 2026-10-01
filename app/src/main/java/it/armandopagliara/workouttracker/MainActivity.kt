@@ -1,6 +1,6 @@
-// 1.1.0
 package it.armandopagliara.workouttracker
 
+import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import android.view.WindowManager
@@ -15,12 +15,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -40,7 +43,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Mantiene lo schermo sempre attivo durante l'uso dell'app
+        // Impedisce allo schermo di spegnersi durante l'allenamento
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         setContent {
@@ -51,8 +54,10 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// Converte il tempo di recupero in formato leggibile (es. 90 -> 1' 30").
-// Se 0 o non numerico, restituisce stringa vuota.
+/**
+ * Helper per formattare i secondi di recupero in una stringa leggibile (es. 90 -> "1' 30"").
+ * Restituisce stringa vuota se il valore non è valido o <= 0.
+ */
 fun formatRecupero(recuperoStr: String): String {
     val totalSec = recuperoStr.toIntOrNull() ?: return ""
     if (totalSec <= 0) return ""
@@ -69,18 +74,18 @@ fun formatRecupero(recuperoStr: String): String {
 @Composable
 fun WorkoutApp() {
     val context = LocalContext.current
+    val currentAppVersion = "1.1.1" // Versione corrente dell'app
+
+    // Gestione stato esercizi e persistenza della scheda attiva
     var exercises by remember { mutableStateOf(WorkoutCsvManager.loadExercises(context)) }
-    
-    // Mantiene l'indice della scheda selezionata salvato
     var selectedTab by rememberSaveable { mutableStateOf(0) }
-    
-    // Traccia l'esercizio attualmente evidenziato (tramite ID)
     var highlightedExerciseId by rememberSaveable { mutableStateOf<String?>(null) }
 
+    // Stati per menu e dialogo editor CSV
     var showMenu by remember { mutableStateOf(false) }
     var showCsvEditorDialog by remember { mutableStateOf(false) }
 
-    // Stati per la gestione dei dialoghi
+    // Stati per la gestione dei dialoghi di editing ed eliminazione
     var exerciseToEdit by remember { mutableStateOf<Exercise?>(null) }
     var exerciseToDelete by remember { mutableStateOf<Exercise?>(null) }
     var showAddExerciseDialog by remember { mutableStateOf(false) }
@@ -89,16 +94,21 @@ fun WorkoutApp() {
     var showDeleteDayDialog by remember { mutableStateOf(false) }
     var showCsvAccessConfirmDialog by remember { mutableStateOf(false) }
 
-    // Lista dinamica dei giorni
+    // --- Gestione Tutorial di Benvenuto (Onboarding ad ogni installazione/aggiornamento) ---
+    val sharedPrefs = remember { context.getSharedPreferences("workout_tracker_prefs", Context.MODE_PRIVATE) }
+    val lastSeenVersion = sharedPrefs.getString("last_seen_version", "")
+    var showWelcomeTutorial by remember { mutableStateOf(lastSeenVersion != currentAppVersion) }
+
+    // Estrazione dinamica delle schede/giorni
     val days = remember(exercises) {
         exercises.map { it.giorno }.distinct().ifEmpty { listOf("Giorno 1: Spinta") }
     }
 
-    // Calcola il tempo di recupero in secondi dell'esercizio eventualmente evidenziato
+    // Identificazione dell'esercizio selezionato e del relativo tempo di recupero
     val selectedExercise = exercises.find { it.id == highlightedExerciseId }
     val targetRecuperoSeconds = selectedExercise?.recupero?.toIntOrNull()?.takeIf { it > 0 }
 
-    // Launcher per Importazione/Esportazione CSV
+    // Launcher per Importazione CSV
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -122,6 +132,7 @@ fun WorkoutApp() {
         }
     }
 
+    // Launcher per Esportazione CSV
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
     ) { uri: Uri? ->
@@ -141,70 +152,49 @@ fun WorkoutApp() {
         topBar = {
             TopAppBar(
                 title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Image(
                             painter = painterResource(id = R.drawable.ic_launcher),
                             contentDescription = "Logo App",
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(10.dp))
+                            modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Column(
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = "Workout",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                lineHeight = 15.sp
-                            )
-                            Text(
-                                text = "Tracker",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                lineHeight = 15.sp
-                            )
+                        Column {
+                            Text(text = "Workout", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, lineHeight = 15.sp)
+                            Text(text = "Tracker", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, lineHeight = 15.sp)
                         }
                     }
                 },
                 actions = {
+                    // Pulsante Tutorial / Info
+                    IconButton(onClick = { showWelcomeTutorial = true }) {
+                        Icon(Icons.Default.Info, contentDescription = "Guida App")
+                    }
+
+                    // Nuova scheda
                     TextButton(onClick = { showNewDayDialog = true }) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Nuova scheda", fontSize = 13.sp)
                     }
 
+                    // Menu CSV
                     TextButton(onClick = { showCsvAccessConfirmDialog = true }) {
                         Text("⚙️ CSV", fontSize = 13.sp)
                     }
 
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false }
-                    ) {
+                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                         DropdownMenuItem(
                             text = { Text("✏️ Modifica CSV (Testo)") },
-                            onClick = {
-                                showMenu = false
-                                showCsvEditorDialog = true
-                            }
+                            onClick = { showMenu = false; showCsvEditorDialog = true }
                         )
                         DropdownMenuItem(
                             text = { Text("📂 Importa CSV da File") },
-                            onClick = {
-                                showMenu = false
-                                importLauncher.launch("*/*")
-                            }
+                            onClick = { showMenu = false; importLauncher.launch("*/*") }
                         )
                         DropdownMenuItem(
                             text = { Text("💾 Esporta CSV su File") },
-                            onClick = {
-                                showMenu = false
-                                exportLauncher.launch("workout_config.csv")
-                            }
+                            onClick = { showMenu = false; exportLauncher.launch("workout_config.csv") }
                         )
                         DropdownMenuItem(
                             text = { Text("🔄 Ripristina Predefinito") },
@@ -221,12 +211,8 @@ fun WorkoutApp() {
             )
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            // Barra dei Tab
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            // Barra di scorrimento delle schede
             ScrollableTabRow(
                 selectedTabIndex = selectedTab.coerceAtMost(days.size - 1),
                 edgePadding = 8.dp
@@ -260,35 +246,24 @@ fun WorkoutApp() {
                     )
                 }
 
-                IconButton(
-                    onClick = { showAddExerciseDialog = true }
-                ) {
-                    Icon(
-                        Icons.Default.Add,
-                        contentDescription = "Aggiungi Esercizio",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+                IconButton(onClick = { showAddExerciseDialog = true }) {
+                    Icon(Icons.Default.Add, contentDescription = "Aggiungi Esercizio", tint = MaterialTheme.colorScheme.primary)
                 }
             }
 
             val currentDayName = days.getOrElse(selectedTab.coerceAtMost(days.size - 1)) { "" }
             val currentList = exercises.filter { it.giorno == currentDayName }
 
-            // Lista degli esercizi
+            // Elenco Esercizi della scheda attiva
             LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 items(currentList, key = { it.id }) { exercise ->
                     val isHighlighted = exercise.id == highlightedExerciseId
                     ExerciseCard(
                         exercise = exercise,
                         isHighlighted = isHighlighted,
-                        onCardClick = {
-                            highlightedExerciseId = if (isHighlighted) null else exercise.id
-                        },
+                        onCardClick = { highlightedExerciseId = if (isHighlighted) null else exercise.id },
                         onEditClick = { exerciseToEdit = exercise },
                         onDeleteClick = { exerciseToDelete = exercise }
                     )
@@ -303,42 +278,41 @@ fun WorkoutApp() {
                                 containerColor = MaterialTheme.colorScheme.errorContainer,
                                 contentColor = MaterialTheme.colorScheme.onErrorContainer
                             ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp)
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    "Elimina intera scheda",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    color = MaterialTheme.colorScheme.error
-                                )
+                                Text("Elimina intera scheda", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.error)
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = "Elimina intera scheda",
-                                    tint = MaterialTheme.colorScheme.error
-                                )
+                                Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                             }
                         }
                     }
                 }
             }
 
-            // Pannello Cronometro / Timer
-            StopwatchPanel(
-                targetRecuperoSeconds = targetRecuperoSeconds
-            )
+            // Cronometro / Timer con gestione decimi di secondo
+            StopwatchPanel(targetRecuperoSeconds = targetRecuperoSeconds)
         }
     }
 
-    // --- DIALOGHI DI CONFERMA E GESTIONE ---
+    // --- TUTORIAL / ONBOARDING DI BENVENUTO ---
+    if (showWelcomeTutorial) {
+        WelcomeTutorialDialog(
+            versionName = currentAppVersion,
+            onDismiss = { dontShowAgain ->
+                if (dontShowAgain) {
+                    sharedPrefs.edit().putString("last_seen_version", currentAppVersion).apply()
+                }
+                showWelcomeTutorial = false
+            }
+        )
+    }
 
+    // --- DIALOGHI DI GESTIONE SCHEDE ED ESERCIZI ---
     if (showRenameDayDialog) {
         val currentDayName = days.getOrElse(selectedTab.coerceAtMost(days.size - 1)) { "" }
         var newDayName by remember { mutableStateOf(currentDayName) }
@@ -369,14 +343,10 @@ fun WorkoutApp() {
                             Toast.makeText(context, "Scheda rinominata!", Toast.LENGTH_SHORT).show()
                         }
                     }
-                ) {
-                    Text("Salva")
-                }
+                ) { Text("Salva") }
             },
             dismissButton = {
-                OutlinedButton(onClick = { showRenameDayDialog = false }) {
-                    Text("Annulla")
-                }
+                OutlinedButton(onClick = { showRenameDayDialog = false }) { Text("Annulla") }
             }
         )
     }
@@ -387,19 +357,10 @@ fun WorkoutApp() {
             title = { Text("Gestione CSV") },
             text = { Text("Vuoi accedere al menu di configurazione e modifica del file CSV?") },
             confirmButton = {
-                Button(
-                    onClick = {
-                        showCsvAccessConfirmDialog = false
-                        showMenu = true
-                    }
-                ) {
-                    Text("Accedi")
-                }
+                Button(onClick = { showCsvAccessConfirmDialog = false; showMenu = true }) { Text("Accedi") }
             },
             dismissButton = {
-                OutlinedButton(onClick = { showCsvAccessConfirmDialog = false }) {
-                    Text("Annulla")
-                }
+                OutlinedButton(onClick = { showCsvAccessConfirmDialog = false }) { Text("Annulla") }
             }
         )
     }
@@ -422,14 +383,10 @@ fun WorkoutApp() {
                         Toast.makeText(context, "Scheda eliminata", Toast.LENGTH_SHORT).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Elimina Scheda")
-                }
+                ) { Text("Elimina Scheda") }
             },
             dismissButton = {
-                OutlinedButton(onClick = { showDeleteDayDialog = false }) {
-                    Text("Annulla")
-                }
+                OutlinedButton(onClick = { showDeleteDayDialog = false }) { Text("Annulla") }
             }
         )
     }
@@ -465,14 +422,10 @@ fun WorkoutApp() {
                         Toast.makeText(context, "Esercizio eliminato", Toast.LENGTH_SHORT).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Elimina")
-                }
+                ) { Text("Elimina") }
             },
             dismissButton = {
-                OutlinedButton(onClick = { exerciseToDelete = null }) {
-                    Text("Annulla")
-                }
+                OutlinedButton(onClick = { exerciseToDelete = null }) { Text("Annulla") }
             }
         )
     }
@@ -535,14 +488,10 @@ fun WorkoutApp() {
                             Toast.makeText(context, "Nuova scheda creata!", Toast.LENGTH_SHORT).show()
                         }
                     }
-                ) {
-                    Text("Crea")
-                }
+                ) { Text("Crea") }
             },
             dismissButton = {
-                OutlinedButton(onClick = { showNewDayDialog = false }) {
-                    Text("Annulla")
-                }
+                OutlinedButton(onClick = { showNewDayDialog = false }) { Text("Annulla") }
             }
         )
     }
@@ -557,9 +506,7 @@ fun WorkoutApp() {
                 OutlinedTextField(
                     value = rawCsvText,
                     onValueChange = { rawCsvText = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(300.dp),
+                    modifier = Modifier.fillMaxWidth().height(300.dp),
                     label = { Text("giorno,nome,muscoli,target,recupero,kg,note") },
                     textStyle = MaterialTheme.typography.bodySmall
                 )
@@ -577,19 +524,69 @@ fun WorkoutApp() {
                             Toast.makeText(context, "Errore nella sintassi CSV", Toast.LENGTH_LONG).show()
                         }
                     }
-                ) {
-                    Text("Salva")
-                }
+                ) { Text("Salva") }
             },
             dismissButton = {
-                OutlinedButton(onClick = { showCsvEditorDialog = false }) {
-                    Text("Annulla")
-                }
+                OutlinedButton(onClick = { showCsvEditorDialog = false }) { Text("Annulla") }
             }
         )
     }
 }
 
+/** Componente per il tutorial/onboarding di benvenuto */
+@Composable
+fun WelcomeTutorialDialog(
+    versionName: String,
+    onDismiss: (dontShowAgain: Boolean) -> Unit
+) {
+    var dontShowAgain by remember { mutableStateOf(true) }
+
+    AlertDialog(
+        onDismissRequest = { onDismiss(dontShowAgain) },
+        title = {
+            Column {
+                Text(text = "Benvenuto in Workout Tracker!", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(text = "Novità e guida versione $versionName", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(text = "Ecco le funzionalità principali dell'applicazione:", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                
+                Text(text = "• 📋 Schede Personalizzate: Crea, modifica e naviga facilmente tra le tue schede di allenamento.", fontSize = 13.sp)
+                Text(text = "• 🎯 Selezione Esercizio: Tocca un esercizio per evidenziarlo durante la serie corrente.", fontSize = 13.sp)
+                Text(text = "• ⏱️ Timer Intelligente: Toccando un esercizio con recupero impostato, il cronometro si trasforma in un conto alla rovescia automatico con segnale visivo di fine tempo.", fontSize = 13.sp)
+                Text(text = "• ✏️ Modifica Facile: Modifica carico, note o tempi tramite l'icona della matita.", fontSize = 13.sp)
+                Text(text = "• 💾 Backup CSV: Esporta o importa la tua scheda in formato CSV per non perdere mai i tuoi dati.", fontSize = 13.sp)
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { dontShowAgain = !dontShowAgain }
+                ) {
+                    Checkbox(
+                        checked = dontShowAgain,
+                        onCheckedChange = { dontShowAgain = it }
+                    )
+                    Text(text = "Non mostrare più per questo aggiornamento", fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onDismiss(dontShowAgain) }) {
+                Text("Inizia Allenamento")
+            }
+        }
+    )
+}
+
+/** Componente Card per la visualizzazione di ciascun esercizio */
 @Composable
 fun ExerciseCard(
     exercise: Exercise,
@@ -598,7 +595,7 @@ fun ExerciseCard(
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
-    // Assembla solo gli attributi non vuoti
+    // Assembla solo gli attributi presenti (nasconde i vuoti)
     val detailsList = mutableListOf<String>()
     if (exercise.muscoli.isNotBlank()) detailsList.add(exercise.muscoli)
     if (exercise.target.isNotBlank()) detailsList.add("Target: ${exercise.target}")
@@ -645,11 +642,7 @@ fun ExerciseCard(
                         Icon(Icons.Default.Edit, contentDescription = "Modifica Esercizio")
                     }
                     IconButton(onClick = onDeleteClick) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = "Elimina Esercizio",
-                            tint = MaterialTheme.colorScheme.error
-                        )
+                        Icon(Icons.Default.Delete, contentDescription = "Elimina Esercizio", tint = MaterialTheme.colorScheme.error)
                     }
                 }
             }
@@ -681,6 +674,7 @@ fun ExerciseCard(
     }
 }
 
+/** Dialogo form per aggiungere o modificare un esercizio */
 @Composable
 fun ExerciseFormDialog(
     title: String,
@@ -737,9 +731,7 @@ fun ExerciseFormDialog(
                             if (current >= 5) recuperoSecText = (current - 5).toString() else recuperoSecText = ""
                         },
                         contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) {
-                        Text("-5")
-                    }
+                    ) { Text("-5") }
 
                     OutlinedTextField(
                         value = recuperoSecText,
@@ -758,9 +750,7 @@ fun ExerciseFormDialog(
                             recuperoSecText = (current + 5).toString()
                         },
                         contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) {
-                        Text("+5")
-                    }
+                    ) { Text("+5") }
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -800,29 +790,23 @@ fun ExerciseFormDialog(
                         )
                     }
                 }
-            ) {
-                Text("Salva")
-            }
+            ) { Text("Salva") }
         },
         dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text("Annulla")
-            }
+            OutlinedButton(onClick = onDismiss) { Text("Annulla") }
         }
     )
 }
 
+/** Pannello Cronometro / Timer con precisione al decimo di secondo */
 @Composable
-fun StopwatchPanel(
-    targetRecuperoSeconds: Int?
-) {
+fun StopwatchPanel(targetRecuperoSeconds: Int?) {
     var isTimerMode by remember { mutableStateOf(false) }
     var timeInTenths by remember { mutableLongStateOf(0L) }
     var isRunning by remember { mutableStateOf(false) }
     var isBlinking by remember { mutableStateOf(false) }
     var blinkState by remember { mutableStateOf(false) }
 
-    // Reagisce ai cambiamenti del recupero dell'esercizio selezionato
     LaunchedEffect(targetRecuperoSeconds) {
         if (targetRecuperoSeconds != null && targetRecuperoSeconds > 0) {
             isTimerMode = true
@@ -837,7 +821,6 @@ fun StopwatchPanel(
         }
     }
 
-    // Timer / Cronometro con avanzamento ogni 100ms
     LaunchedEffect(isRunning, isTimerMode) {
         while (isRunning) {
             delay(100L)
@@ -857,7 +840,6 @@ fun StopwatchPanel(
         }
     }
 
-    // Effetto lampeggiante al termine del conto alla rovescia (4 lampeggi veloci)
     LaunchedEffect(isBlinking) {
         if (isBlinking) {
             repeat(4) {
@@ -870,7 +852,6 @@ fun StopwatchPanel(
         }
     }
 
-    // Formattazione del tempo in MM:SS.d
     val minutes = (timeInTenths / 10) / 60
     val seconds = (timeInTenths / 10) % 60
     val tenths = timeInTenths % 10
@@ -886,19 +867,12 @@ fun StopwatchPanel(
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column {
-                Text(
-                    text = formattedTime,
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = textColor
-                )
+                Text(text = formattedTime, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = textColor)
                 if (isTimerMode) {
                     Text(
                         text = "Recupero (Timer)",
@@ -908,31 +882,19 @@ fun StopwatchPanel(
                 }
             }
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Button(
-                    onClick = {
-                        isBlinking = false
-                        isRunning = true
-                    },
+                    onClick = { isBlinking = false; isRunning = true },
                     enabled = !isRunning && (!isTimerMode || timeInTenths > 0),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    Text("START", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
+                ) { Text("START", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
 
                 Button(
                     onClick = { isRunning = false },
                     enabled = isRunning,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
-                    ),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    Text("STOP", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
+                ) { Text("STOP", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
 
                 OutlinedButton(
                     onClick = {
@@ -942,9 +904,7 @@ fun StopwatchPanel(
                         timeInTenths = 0L
                     },
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    Text("RST", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
+                ) { Text("RST", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
             }
         }
     }
