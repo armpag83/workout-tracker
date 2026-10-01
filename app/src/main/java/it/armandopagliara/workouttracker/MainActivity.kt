@@ -813,31 +813,17 @@ fun StopwatchPanel(targetRecuperoSeconds: Int?) {
     // Stato per attivare/disattivare l'allarme sonoro (memorizzato durante l'uso)
     var isSoundEnabled by rememberSaveable { mutableStateOf(true) }
 
-    // Gestione avviso visivo (lampeggio) ed effetto sonoro di fine recupero
-    LaunchedEffect(isBlinking) {
-        if (isBlinking) {
-            // Riproduce il suono di allarme se attivo
-            if (isSoundEnabled) {
-                try {
-                    val toneGen = ToneGenerator(AudioManager.STREAM_ALARM, 100)
-                    toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 500)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-
-            // Blocco try-finally per prevenire blocchi sul colore rosso
-            try {
-                repeat(4) {
-                    blinkState = true
-                    delay(250L)
-                    blinkState = false
-                    delay(250L)
-                }
-            } finally {
-                blinkState = false
-                isBlinking = false
-            }
+    // Sincronizzazione automatica all'evidenziazione di un esercizio
+    LaunchedEffect(targetRecuperoSeconds) {
+        isRunning = false
+        isBlinking = false
+        blinkState = false
+        if (targetRecuperoSeconds != null && targetRecuperoSeconds > 0) {
+            isTimerMode = true
+            timeInTenths = targetRecuperoSeconds * 10L
+        } else {
+            isTimerMode = false
+            timeInTenths = 0L
         }
     }
 
@@ -861,14 +847,14 @@ fun StopwatchPanel(targetRecuperoSeconds: Int?) {
         }
     }
 
-    // Gestione avviso visivo (lampeggio) ed effetto sonoro di fine recupero
+// Gestione avviso visivo (lampeggio) ed effetto sonoro di fine recupero
     LaunchedEffect(isBlinking) {
         if (isBlinking) {
             // Riproduce il suono di allarme se attivo
             if (isSoundEnabled) {
                 try {
                     val toneGen = ToneGenerator(AudioManager.STREAM_ALARM, 100)
-                    toneGen.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_OR_VOLUMED_ACK, 500)
+                    toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 500)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
