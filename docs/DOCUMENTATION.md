@@ -59,3 +59,20 @@ Il sistema adotta l'architettura **Unidirectional Data Flow (UDF)** implementata
 giorno,nome,muscoli,target,recupero,kg,note
 Giorno 1: Gambe,Riscaldamento,Tapis roulant,5',300,,
 Giorno 1: Gambe,Leg Extension,Quadricipiti,3 x 8,120,,
+
+---
+
+## 5. Organizzazione dei file del progetto
+it/armandopagliara/workouttracker/
+├── MainActivity.kt                      <-- File principale pulito
+├── data/
+│   └── WorkoutCsvManager.kt             <-- Gestione CSV e persistenza
+├── model/
+│   └── Exercise.kt                      <-- Data class dell'esercizio
+└── ui/
+    ├── components/
+    │   ├── ExerciseCard.kt              <-- Card visiva del singolo esercizio
+    │   └── StopwatchPanel.kt            <-- Timer/Cronometro con audio e 5 lampi
+    └── dialogs/
+        ├── ExerciseFormDialog.kt        <-- Form di aggiunta e modifica
+        └── WelcomeTutorialDialog.kt     <-- Popup di guida e novità
