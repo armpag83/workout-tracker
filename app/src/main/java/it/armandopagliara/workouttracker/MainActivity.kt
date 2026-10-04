@@ -56,11 +56,16 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WorkoutApp() {
     val context = LocalContext.current
-    val currentAppVersion = "1.1.4"
+    val currentAppVersion = "1.1.5"
 
     var exercises by remember { mutableStateOf(WorkoutCsvManager.loadExercises(context)) }
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     var highlightedExerciseId by rememberSaveable { mutableStateOf<String?>(null) }
+
+    // Tracciamento dello stato di esecuzione del timer
+    var isTimerRunning by remember { mutableStateOf(false) }
+    var pendingExerciseIdSelection by remember { mutableStateOf<String?>(null) }
+    var showConfirmExerciseChangeDialog by remember { mutableStateOf(false) }
 
     var showMenu by remember { mutableStateOf(false) }
     var showCsvEditorDialog by remember { mutableStateOf(false) }
@@ -233,7 +238,15 @@ fun WorkoutApp() {
                     ExerciseCard(
                         exercise = exercise,
                         isHighlighted = isHighlighted,
-                        onCardClick = { highlightedExerciseId = if (isHighlighted) null else exercise.id },
+                        onCardClick = {
+                            val targetSelection = if (isHighlighted) null else exercise.id
+                            if (isTimerRunning && targetSelection != highlightedExerciseId) {
+                                pendingExerciseIdSelection = targetSelection
+                                showConfirmExerciseChangeDialog = true
+                            } else {
+                                highlightedExerciseId = targetSelection
+                            }
+                        },
                         onEditClick = { exerciseToEdit = exercise },
                         onDeleteClick = { exerciseToDelete = exercise }
                     )
@@ -264,8 +277,37 @@ fun WorkoutApp() {
                 }
             }
 
-            StopwatchPanel(targetRecuperoSeconds = targetRecuperoSeconds)
+            StopwatchPanel(
+                targetRecuperoSeconds = targetRecuperoSeconds,
+                onRunningStateChange = { running -> isTimerRunning = running }
+            )
         }
+    }
+
+    // --- ALERT CONFERMA CAMBIO ESERCIZIO CON TIMER IN CORSO ---
+    if (showConfirmExerciseChangeDialog) {
+        AlertDialog(
+            onDismissRequest = { showConfirmExerciseChangeDialog = false },
+            title = { Text("Attenzione", fontWeight = FontWeight.Bold) },
+            text = { Text("Recupero in corso! Cambiando esercizio il timer si fermerà.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        highlightedExerciseId = pendingExerciseIdSelection
+                        showConfirmExerciseChangeDialog = false
+                    }
+                ) {
+                    Text("Procedi")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showConfirmExerciseChangeDialog = false }
+                ) {
+                    Text("Annulla")
+                }
+            }
+        )
     }
 
     if (showWelcomeTutorial) {

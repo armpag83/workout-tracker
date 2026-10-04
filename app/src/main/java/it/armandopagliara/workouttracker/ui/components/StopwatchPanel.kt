@@ -14,17 +14,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
-/** Pannello Cronometro / Timer con 5 lampeggi ed effetto sonoro ad alta frequenza */
+/** Pannello Cronometro / Timer con 5 lampeggi e 3 bip veloci ad alta frequenza per ciascun lampeggio */
 @Composable
-fun StopwatchPanel(targetRecuperoSeconds: Int?) {
+fun StopwatchPanel(
+    targetRecuperoSeconds: Int?,
+    onRunningStateChange: (Boolean) -> Unit = {}
+) {
     var isTimerMode by remember { mutableStateOf(false) }
     var timeInTenths by remember { mutableLongStateOf(0L) }
     var isRunning by remember { mutableStateOf(false) }
     var isBlinking by remember { mutableStateOf(false) }
     var blinkState by remember { mutableStateOf(false) }
-    
-    // Stato attivazione/disattivazione allarme acustico
+
     var isSoundEnabled by rememberSaveable { mutableStateOf(true) }
+
+    // Comunica all'esterno (es. MainActivity) se il conto alla rovescia del Timer è attivo
+    LaunchedEffect(isRunning, isTimerMode) {
+        onRunningStateChange(isRunning && isTimerMode)
+    }
 
     LaunchedEffect(targetRecuperoSeconds) {
         isRunning = false
@@ -58,7 +65,7 @@ fun StopwatchPanel(targetRecuperoSeconds: Int?) {
         }
     }
 
-    // Gestione avviso visivo e sonoro (5 lampeggi con bip ad un'ottava superiore)
+    // Gestione avviso visivo e sonoro (5 lampeggi con 3 bip veloci ad una frequenza superiore)
     LaunchedEffect(isBlinking) {
         if (isBlinking) {
             var toneGen: ToneGenerator? = null
@@ -68,8 +75,15 @@ fun StopwatchPanel(targetRecuperoSeconds: Int?) {
                 }
                 repeat(5) {
                     blinkState = true
-                    toneGen?.startTone(ToneGenerator.TONE_PROP_BEEP2, 150)
-                    delay(250L)
+                    // 3 bip veloci durante la fase accesa del lampeggio ad frequenza elevata
+                    if (isSoundEnabled) {
+                        repeat(3) {
+                            toneGen?.startTone(ToneGenerator.TONE_CDMA_HIGH_L, 50)
+                            delay(80L)
+                        }
+                    } else {
+                        delay(240L)
+                    }
                     blinkState = false
                     delay(250L)
                 }
@@ -113,7 +127,6 @@ fun StopwatchPanel(targetRecuperoSeconds: Int?) {
                         color = textColor
                     )
 
-                    // Mostra la campanella SOLO in modalità Timer
                     if (isTimerMode) {
                         IconButton(
                             onClick = { isSoundEnabled = !isSoundEnabled },
@@ -173,7 +186,6 @@ fun StopwatchPanel(targetRecuperoSeconds: Int?) {
                         isBlinking = false
                         blinkState = false
 
-                        // Ripristina il tempo di recupero target in modalità timer
                         if (targetRecuperoSeconds != null && targetRecuperoSeconds > 0) {
                             isTimerMode = true
                             timeInTenths = targetRecuperoSeconds * 10L
