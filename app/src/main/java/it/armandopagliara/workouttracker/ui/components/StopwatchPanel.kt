@@ -14,10 +14,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
-/** Pannello Cronometro / Timer con 5 lampeggi e 3 bip veloci ad alta frequenza per ciascun lampeggio */
+/** Pannello Cronometro / Timer sincronizzato con l'ID dell'esercizio selezionato */
 @Composable
 fun StopwatchPanel(
     targetRecuperoSeconds: Int?,
+    selectedExerciseId: String?,
     onRunningStateChange: (Boolean) -> Unit = {}
 ) {
     var isTimerMode by remember { mutableStateOf(false) }
@@ -28,12 +29,13 @@ fun StopwatchPanel(
 
     var isSoundEnabled by rememberSaveable { mutableStateOf(true) }
 
-    // Comunica all'esterno (es. MainActivity) se il conto alla rovescia del Timer è attivo
+    // Comunica lo stato di esecuzione del Timer all'esterno
     LaunchedEffect(isRunning, isTimerMode) {
         onRunningStateChange(isRunning && isTimerMode)
     }
 
-    LaunchedEffect(targetRecuperoSeconds) {
+    // Si attiva a OGNI cambio di esercizio selezionato (anche a parità di secondi di recupero)
+    LaunchedEffect(selectedExerciseId) {
         isRunning = false
         isBlinking = false
         blinkState = false
@@ -65,7 +67,7 @@ fun StopwatchPanel(
         }
     }
 
-    // Gestione avviso visivo e sonoro (5 lampeggi con 3 bip veloci ad una frequenza superiore)
+    // Allarme visivo e sonoro (5 lampeggi con 3 bip veloci)
     LaunchedEffect(isBlinking) {
         if (isBlinking) {
             var toneGen: ToneGenerator? = null
@@ -75,7 +77,6 @@ fun StopwatchPanel(
                 }
                 repeat(5) {
                     blinkState = true
-                    // 3 bip veloci durante la fase accesa del lampeggio ad frequenza elevata
                     if (isSoundEnabled) {
                         repeat(3) {
                             toneGen?.startTone(ToneGenerator.TONE_CDMA_HIGH_L, 50)

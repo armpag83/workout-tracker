@@ -56,7 +56,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WorkoutApp() {
     val context = LocalContext.current
-    val currentAppVersion = "1.1.5"
+    val currentAppVersion = "1.1.6"
 
     var exercises by remember { mutableStateOf(WorkoutCsvManager.loadExercises(context)) }
     var selectedTab by rememberSaveable { mutableStateOf(0) }
@@ -279,6 +279,7 @@ fun WorkoutApp() {
 
             StopwatchPanel(
                 targetRecuperoSeconds = targetRecuperoSeconds,
+                selectedExerciseId = highlightedExerciseId,
                 onRunningStateChange = { running -> isTimerRunning = running }
             )
         }
