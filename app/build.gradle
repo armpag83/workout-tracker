@@ -12,9 +12,12 @@ android {
         minSdk 21
         targetSdk 34
         
-        // Incrementati per consentire l'aggiornamento diretto senza disinstallazione
-        versionCode 12
-        versionName "1.1.6"
+        // Incrementati per la versione 1.1.7
+        versionCode 13
+        versionName "1.1.7"
+
+        // Abilitato per gestire l'indicizzazione DEX di librerie ampie come material-icons-extended
+        multiDexEnabled true
     }
 
     signingConfigs {
