@@ -72,7 +72,7 @@ fun WorkoutApp() {
 
     // Tracciamento stato Drag & Drop per fluidità
     var draggingIndex by remember { mutableStateOf<Int?>(null) }
-    var accumulatedOffsetY by remember { mutableFloatOf(0f) }
+    var accumulatedOffsetY by remember { mutableFloatStateOf(0f) }
 
     // Tracciamento stato Timer ed eventuale conferma cambio esercizio
     var isTimerRunning by remember { mutableStateOf(false) }
@@ -346,7 +346,7 @@ fun WorkoutApp() {
                                 onDrag = { change, dragAmount ->
                                     change.consume()
                                     accumulatedOffsetY += dragAmount.y
-                                    val thresholdPx = 160f // Soglia fluida pari all'altezza di una card
+                                    val thresholdPx = 160f
 
                                     if (accumulatedOffsetY > thresholdPx && index < currentList.size - 1) {
                                         moveExercise(index, index + 1, currentDayName)
