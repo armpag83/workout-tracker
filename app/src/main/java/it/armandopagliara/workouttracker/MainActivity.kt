@@ -1,3 +1,4 @@
+// 1.1.7
 package it.armandopagliara.workouttracker
 
 import android.content.Context
@@ -10,12 +11,14 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
@@ -25,6 +28,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -56,13 +60,16 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WorkoutApp() {
     val context = LocalContext.current
-    val currentAppVersion = "1.1.6"
+    val currentAppVersion = "1.1.7"
 
     var exercises by remember { mutableStateOf(WorkoutCsvManager.loadExercises(context)) }
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     var highlightedExerciseId by rememberSaveable { mutableStateOf<String?>(null) }
 
-    // Tracciamento dello stato di esecuzione del timer
+    // Appunti per Copia & Incolla
+    var copiedExercise by remember { mutableStateOf<Exercise?>(null) }
+
+    // Tracciamento stato Timer ed eventuale conferma cambio esercizio
     var isTimerRunning by remember { mutableStateOf(false) }
     var pendingExerciseIdSelection by remember { mutableStateOf<String?>(null) }
     var showConfirmExerciseChangeDialog by remember { mutableStateOf(false) }
@@ -78,7 +85,6 @@ fun WorkoutApp() {
     var showDeleteDayDialog by remember { mutableStateOf(false) }
     var showCsvAccessConfirmDialog by remember { mutableStateOf(false) }
 
-    // --- GESTIONE POPUP BENVENUTO / AGGIORNAMENTO ---
     val sharedPrefs = remember { context.getSharedPreferences("workout_tracker_prefs", Context.MODE_PRIVATE) }
     val lastSeenVersion = sharedPrefs.getString("last_seen_version", "")
     var showWelcomeTutorial by remember { mutableStateOf(lastSeenVersion != currentAppVersion) }
@@ -89,6 +95,31 @@ fun WorkoutApp() {
 
     val selectedExercise = exercises.find { it.id == highlightedExerciseId }
     val targetRecuperoSeconds = selectedExercise?.recupero?.toIntOrNull()?.takeIf { it > 0 }
+
+    /** Funzione per spostare l'ordine di un esercizio nella scheda corrente */
+    fun moveExercise(fromIndex: Int, toIndex: Int, currentDay: String) {
+        if (fromIndex == toIndex) return
+        val dayExercises = exercises.filter { it.giorno == currentDay }.toMutableList()
+        if (fromIndex in dayExercises.indices && toIndex in dayExercises.indices) {
+            val movedItem = dayExercises.removeAt(fromIndex)
+            dayExercises.add(toIndex, movedItem)
+
+            val newExercises = mutableListOf<Exercise>()
+            var dayInserted = false
+            for (ex in exercises) {
+                if (ex.giorno == currentDay) {
+                    if (!dayInserted) {
+                        newExercises.addAll(dayExercises)
+                        dayInserted = true
+                    }
+                } else {
+                    newExercises.add(ex)
+                }
+            }
+            exercises = newExercises
+            WorkoutCsvManager.saveExercises(context, newExercises)
+        }
+    }
 
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -146,6 +177,27 @@ fun WorkoutApp() {
                     }
                 },
                 actions = {
+                    // Pulsante Incolla dinamico se c'è un esercizio in memoria
+                    copiedExercise?.let { copied ->
+                        TextButton(
+                            onClick = {
+                                val currentDay = days.getOrElse(selectedTab.coerceAtMost((days.size - 1).coerceAtLeast(0))) { "Giorno 1" }
+                                val pasted = copied.copy(
+                                    id = "${currentDay}_${System.currentTimeMillis()}",
+                                    giorno = currentDay
+                                )
+                                val newList = exercises + pasted
+                                exercises = newList
+                                WorkoutCsvManager.saveExercises(context, newList)
+                                Toast.makeText(context, "\"${copied.nome}\" incollato in $currentDay", Toast.LENGTH_SHORT).show()
+                            }
+                        ) {
+                            Icon(Icons.Default.ContentPaste, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Incolla", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
                     IconButton(onClick = { showWelcomeTutorial = true }) {
                         Icon(Icons.Default.Info, contentDescription = "Guida App")
                     }
@@ -180,6 +232,7 @@ fun WorkoutApp() {
                                 exercises = WorkoutCsvManager.resetToDefault(context)
                                 selectedTab = 0
                                 highlightedExerciseId = null
+                                copiedExercise = null
                                 Toast.makeText(context, "Configurazione ripristinata", Toast.LENGTH_SHORT).show()
                             }
                         )
@@ -231,10 +284,14 @@ fun WorkoutApp() {
             val currentList = exercises.filter { it.giorno == currentDayName }
 
             LazyColumn(
-                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
-                items(currentList, key = { it.id }) { exercise ->
+                itemsIndexed(currentList, key = { _, exercise -> exercise.id }) { index, exercise ->
                     val isHighlighted = exercise.id == highlightedExerciseId
+
                     ExerciseCard(
                         exercise = exercise,
                         isHighlighted = isHighlighted,
@@ -247,8 +304,24 @@ fun WorkoutApp() {
                                 highlightedExerciseId = targetSelection
                             }
                         },
+                        onCopyClick = {
+                            copiedExercise = exercise
+                            Toast.makeText(context, "Esercizio \"${exercise.nome}\" copiato negli appunti!", Toast.LENGTH_SHORT).show()
+                        },
                         onEditClick = { exerciseToEdit = exercise },
-                        onDeleteClick = { exerciseToDelete = exercise }
+                        onDeleteClick = { exerciseToDelete = exercise },
+                        dragModifier = Modifier.pointerInput(Unit) {
+                            detectDragGesturesAfterLongPress(
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    if (dragAmount.y > 30 && index < currentList.size - 1) {
+                                        moveExercise(index, index + 1, currentDayName)
+                                    } else if (dragAmount.y < -30 && index > 0) {
+                                        moveExercise(index, index - 1, currentDayName)
+                                    }
+                                }
+                            )
+                        }
                     )
                 }
 
@@ -285,7 +358,6 @@ fun WorkoutApp() {
         }
     }
 
-    // --- ALERT CONFERMA CAMBIO ESERCIZIO CON TIMER IN CORSO ---
     if (showConfirmExerciseChangeDialog) {
         AlertDialog(
             onDismissRequest = { showConfirmExerciseChangeDialog = false },

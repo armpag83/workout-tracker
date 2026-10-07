@@ -1,3 +1,4 @@
+// 1.1.7
 package it.armandopagliara.workouttracker.ui.dialogs
 
 import androidx.compose.foundation.clickable
@@ -36,14 +37,13 @@ fun WelcomeTutorialDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(text = "Funzionalità dell'applicazione:", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Text(text = "Novità e funzionalità:", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 
-                Text(text = "• 📋 Schede Personalizzate: Crea, rinomina e naviga facilmente tra le tue schede.", fontSize = 13.sp)
-                Text(text = "• 🎯 Selezione Esercizio: Tocca un esercizio per evidenziarlo durante la serie.", fontSize = 13.sp)
-                Text(text = "• ⏱️ Timer & Reset Intelligente: Tocca un esercizio con recupero per attivare il conto alla rovescia. Il tasto RST ripristina il tempo di recupero anziché azzerarlo.", fontSize = 13.sp)
-                Text(text = "• 🔔 Allarme Visivo e Acustico: Allo scadere del tempo lo schermo lampeggia 5 volte con un bip sonoro. In modalità Timer puoi silenziarlo con l'icona 🔔/🔕.", fontSize = 13.sp)
-                Text(text = "• ✏️ Modifica Dati: Modifica carico (Kg), note o target con la matita.", fontSize = 13.sp)
-                Text(text = "• 💾 Import/Export CSV: Gestisci i backup della tua scheda in formato CSV.", fontSize = 13.sp)
+                Text(text = "• 🔀 Riordinamento Esercizi: Trascina un esercizio tenendo premuta l'icona ☰ per riordinare la scheda.", fontSize = 13.sp)
+                Text(text = "• 📋 Copia & Incolla: Copia un esercizio con l'icona 📋 e incollalo facilmente in un'altra scheda.", fontSize = 13.sp)
+                Text(text = "• ⏱️ Timer & Reset Intelligente: Conto alla rovescia con tasto RST per ripristinare il recupero.", fontSize = 13.sp)
+                Text(text = "• 🔔 Allarme Visivo e Acustico: Allo scadere del tempo lo schermo lampeggia con 3 bip veloci. Muto attivabile con 🔔/🔕.", fontSize = 13.sp)
+                Text(text = "• ✏️ Modifica Dati & CSV: Modifica carico, note e target, oppure importa/esporta backup CSV.", fontSize = 13.sp)
 
                 Spacer(modifier = Modifier.height(6.dp))
 
