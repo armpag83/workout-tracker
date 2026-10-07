@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WorkoutApp() {
     val context = LocalContext.current
-    val currentAppVersion = "DEV_0.2.8"
+    val currentAppVersion = "DEV_0.2.9"
 
     var exercises by remember { mutableStateOf(WorkoutCsvManager.loadExercises(context)) }
     var selectedTab by rememberSaveable { mutableStateOf(0) }
@@ -322,7 +322,7 @@ fun WorkoutApp() {
         }
     }
 
-    // --- PANNELLO "INCOLLA IN: (LISTA SCHEDE)" ---
+    // --- PANNELLO "INCOLLA IN: (LISTA SCHEDE)" CON CONTROLLO NOMI DUPLICATI ---
     exerciseToCopy?.let { exToCopy ->
         AlertDialog(
             onDismissRequest = { exerciseToCopy = null },
@@ -335,14 +335,20 @@ fun WorkoutApp() {
                     days.forEach { targetDay ->
                         OutlinedButton(
                             onClick = {
+                                val existsInTarget = exercises.any {
+                                    it.giorno == targetDay && it.nome.trim().equals(exToCopy.nome.trim(), ignoreCase = true)
+                                }
+                                val finalName = if (existsInTarget) "${exToCopy.nome} copia" else exToCopy.nome
+
                                 val pasted = exToCopy.copy(
                                     id = "${targetDay}_${System.currentTimeMillis()}",
-                                    giorno = targetDay
+                                    giorno = targetDay,
+                                    nome = finalName
                                 )
                                 val newList = exercises + pasted
                                 exercises = newList
                                 WorkoutCsvManager.saveExercises(context, newList)
-                                Toast.makeText(context, "Esercizio incollato in \"$targetDay\"", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "\"$finalName\" incollato in \"$targetDay\"", Toast.LENGTH_SHORT).show()
                                 exerciseToCopy = null
                             },
                             modifier = Modifier.fillMaxWidth()

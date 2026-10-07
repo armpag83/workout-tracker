@@ -39,11 +39,11 @@ fun WelcomeTutorialDialog(
             ) {
                 Text(text = "Novità e funzionalità:", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 
-                Text(text = "• 🔀 Riordinamento Esercizi: Trascina un esercizio tenendo premuta l'icona ☰ per riordinare la scheda.", fontSize = 13.sp)
-                Text(text = "• 📋 Copia & Incolla: Copia un esercizio con l'icona 📋 e incollalo facilmente in un'altra scheda.", fontSize = 13.sp)
-                Text(text = "• ⏱️ Timer & Reset Intelligente: Conto alla rovescia con tasto RST per ripristinare il recupero.", fontSize = 13.sp)
-                Text(text = "• 🔔 Allarme Visivo e Acustico: Allo scadere del tempo lo schermo lampeggia con 3 bip veloci. Muto attivabile con 🔔/🔕.", fontSize = 13.sp)
-                Text(text = "• ✏️ Modifica Dati & CSV: Modifica carico, note e target, oppure importa/esporta backup CSV.", fontSize = 13.sp)
+                Text(text = "• 🔀 Riordinamento Esercizi: usa le frecce per spostare gli esercizi e riordinarli.", fontSize = 13.sp)
+                Text(text = "• 📋 Copia & Incolla: copia un esercizio con l'icona 📋 e incollalo facilmente in un'altra scheda.", fontSize = 13.sp)
+                Text(text = "• ⏱️ Timer & Reset Intelligente: conto alla rovescia con tasto RST per ripristinare il recupero.", fontSize = 13.sp)
+                Text(text = "• 🔔 Allarme Visivo e Acustico: allo scadere del tempo lo schermo lampeggia con 3 bip veloci. Muto attivabile con 🔔/🔕.", fontSize = 13.sp)
+                Text(text = "• ✏️ Modifica Dati & CSV: modifica carico, note e target, oppure importa/esporta backup CSV.", fontSize = 13.sp)
 
                 Spacer(modifier = Modifier.height(6.dp))
 
