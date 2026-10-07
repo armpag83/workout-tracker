@@ -12,9 +12,9 @@ android {
         minSdk 21
         targetSdk 34
         
-        // Incrementati per la versione 1.1.7
-        versionCode 13
-        versionName "1.1.7"
+        // Incrementati per la versione DEV_0.2.8
+        versionCode 14
+        versionName "DEV_0.2.8"
 
         // Abilitato per gestire l'indicizzazione DEX di librerie ampie come material-icons-extended
         multiDexEnabled true

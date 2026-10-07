@@ -7,8 +7,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,17 +32,19 @@ fun formatRecupero(recuperoStr: String): String {
     }
 }
 
-/** Componente Card con feedback visivo durante il trascinamento e pulsante di copia */
+/** Card Esercizio con frecce su/giù visibili solo quando l'esercizio è selezionato */
 @Composable
 fun ExerciseCard(
     exercise: Exercise,
     isHighlighted: Boolean,
-    isDragging: Boolean = false,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
     onCardClick: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
     onCopyClick: () -> Unit,
     onEditClick: () -> Unit,
-    onDeleteClick: () -> Unit,
-    dragModifier: Modifier = Modifier
+    onDeleteClick: () -> Unit
 ) {
     val detailsList = mutableListOf<String>()
     if (exercise.muscoli.isNotBlank()) detailsList.add(exercise.muscoli)
@@ -51,26 +54,16 @@ fun ExerciseCard(
 
     val detailsText = detailsList.joinToString(" | ")
 
-    val containerColor = when {
-        isDragging -> MaterialTheme.colorScheme.secondaryContainer
-        isHighlighted -> MaterialTheme.colorScheme.primaryContainer
-        else -> MaterialTheme.colorScheme.surface
-    }
-
-    val elevation = when {
-        isDragging -> 12.dp
-        isHighlighted -> 6.dp
-        else -> 2.dp
-    }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .clickable { onCardClick() },
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = if (isHighlighted || isDragging) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
-        elevation = CardDefaults.cardElevation(defaultElevation = elevation)
+        colors = CardDefaults.cardColors(
+            containerColor = if (isHighlighted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+        ),
+        border = if (isHighlighted) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isHighlighted) 6.dp else 2.dp)
     ) {
         Row(
             modifier = Modifier
@@ -78,28 +71,50 @@ fun ExerciseCard(
                 .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icona di trascinamento
-            Icon(
-                imageVector = Icons.Default.DragHandle,
-                contentDescription = "Trascina per riordinare",
-                tint = if (isDragging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                modifier = dragModifier
-                    .padding(end = 8.dp)
-                    .size(24.dp)
-            )
+            // Frecce Su e Giù visibili SOLO quando la card è selezionata
+            if (isHighlighted) {
+                Column(
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(end = 6.dp)
+                ) {
+                    IconButton(
+                        onClick = onMoveUp,
+                        enabled = canMoveUp,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowUp,
+                            contentDescription = "Sposta in alto",
+                            tint = if (canMoveUp) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                        )
+                    }
+                    IconButton(
+                        onClick = onMoveDown,
+                        enabled = canMoveDown,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Sposta in basso",
+                            tint = if (canMoveDown) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                        )
+                    }
+                }
+            }
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = exercise.nome,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
-                    color = if (isHighlighted || isDragging) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                    color = if (isHighlighted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                 )
                 if (detailsText.isNotBlank()) {
                     Text(
                         text = detailsText,
                         fontSize = 12.sp,
-                        color = if (isHighlighted || isDragging) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.secondary
+                        color = if (isHighlighted) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.secondary
                     )
                 }
 

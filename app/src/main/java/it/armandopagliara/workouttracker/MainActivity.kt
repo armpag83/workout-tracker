@@ -1,4 +1,4 @@
-// 1.1.8
+// DEV_0.2.8
 package it.armandopagliara.workouttracker
 
 import android.content.Context
@@ -11,14 +11,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
@@ -28,7 +26,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -60,19 +57,14 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WorkoutApp() {
     val context = LocalContext.current
-    val currentAppVersion = "1.1.7"
+    val currentAppVersion = "DEV_0.2.8"
 
     var exercises by remember { mutableStateOf(WorkoutCsvManager.loadExercises(context)) }
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     var highlightedExerciseId by rememberSaveable { mutableStateOf<String?>(null) }
 
-    // Gestione Appunti & Menu Incolla
-    var copiedExercise by remember { mutableStateOf<Exercise?>(null) }
-    var showPasteMenu by remember { mutableStateOf(false) }
-
-    // Tracciamento stato Drag & Drop per fluidità
-    var draggingIndex by remember { mutableStateOf<Int?>(null) }
-    var accumulatedOffsetY by remember { mutableFloatStateOf(0f) }
+    // Stato per il pannello "Incolla in:"
+    var exerciseToCopy by remember { mutableStateOf<Exercise?>(null) }
 
     // Tracciamento stato Timer ed eventuale conferma cambio esercizio
     var isTimerRunning by remember { mutableStateOf(false) }
@@ -101,9 +93,8 @@ fun WorkoutApp() {
     val selectedExercise = exercises.find { it.id == highlightedExerciseId }
     val targetRecuperoSeconds = selectedExercise?.recupero?.toIntOrNull()?.takeIf { it > 0 }
 
-    /** Funzione per riordinare gli esercizi in maniera controllata */
+    /** Sposta un esercizio su o giù nella scheda corrente */
     fun moveExercise(fromIndex: Int, toIndex: Int, currentDay: String) {
-        if (fromIndex == toIndex) return
         val dayExercises = exercises.filter { it.giorno == currentDay }.toMutableList()
         if (fromIndex in dayExercises.indices && toIndex in dayExercises.indices) {
             val movedItem = dayExercises.removeAt(fromIndex)
@@ -182,39 +173,6 @@ fun WorkoutApp() {
                     }
                 },
                 actions = {
-                    // Icona Azioni Incolla (compare se c'è un esercizio copiato negli appunti)
-                    copiedExercise?.let { copied ->
-                        Box {
-                            IconButton(onClick = { showPasteMenu = true }) {
-                                Icon(
-                                    imageVector = Icons.Default.ContentPaste,
-                                    contentDescription = "Azioni Appunti",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = showPasteMenu,
-                                onDismissRequest = { showPasteMenu = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("📋 Incolla esercizio (\"${copied.nome}\")") },
-                                    onClick = {
-                                        showPasteMenu = false
-                                        val currentDay = days.getOrElse(selectedTab.coerceAtMost((days.size - 1).coerceAtLeast(0))) { "Giorno 1" }
-                                        val pasted = copied.copy(
-                                            id = "${currentDay}_${System.currentTimeMillis()}",
-                                            giorno = currentDay
-                                        )
-                                        val newList = exercises + pasted
-                                        exercises = newList
-                                        WorkoutCsvManager.saveExercises(context, newList)
-                                        Toast.makeText(context, "\"${copied.nome}\" incollato in $currentDay", Toast.LENGTH_SHORT).show()
-                                    }
-                                )
-                            }
-                        }
-                    }
-
                     IconButton(onClick = { showWelcomeTutorial = true }) {
                         Icon(Icons.Default.Info, contentDescription = "Guida App")
                     }
@@ -249,7 +207,7 @@ fun WorkoutApp() {
                                 exercises = WorkoutCsvManager.resetToDefault(context)
                                 selectedTab = 0
                                 highlightedExerciseId = null
-                                copiedExercise = null
+                                exerciseToCopy = null
                                 Toast.makeText(context, "Configurazione ripristinata", Toast.LENGTH_SHORT).show()
                             }
                         )
@@ -308,12 +266,12 @@ fun WorkoutApp() {
             ) {
                 itemsIndexed(currentList, key = { _, exercise -> exercise.id }) { index, exercise ->
                     val isHighlighted = exercise.id == highlightedExerciseId
-                    val isDraggingThis = draggingIndex == index
 
                     ExerciseCard(
                         exercise = exercise,
                         isHighlighted = isHighlighted,
-                        isDragging = isDraggingThis,
+                        canMoveUp = index > 0,
+                        canMoveDown = index < currentList.size - 1,
                         onCardClick = {
                             val targetSelection = if (isHighlighted) null else exercise.id
                             if (isTimerRunning && targetSelection != highlightedExerciseId) {
@@ -323,43 +281,11 @@ fun WorkoutApp() {
                                 highlightedExerciseId = targetSelection
                             }
                         },
-                        onCopyClick = {
-                            copiedExercise = exercise
-                            Toast.makeText(context, "Copiato \"${exercise.nome}\"", Toast.LENGTH_SHORT).show()
-                        },
+                        onMoveUp = { moveExercise(index, index - 1, currentDayName) },
+                        onMoveDown = { moveExercise(index, index + 1, currentDayName) },
+                        onCopyClick = { exerciseToCopy = exercise },
                         onEditClick = { exerciseToEdit = exercise },
-                        onDeleteClick = { exerciseToDelete = exercise },
-                        dragModifier = Modifier.pointerInput(Unit) {
-                            detectDragGesturesAfterLongPress(
-                                onDragStart = {
-                                    draggingIndex = index
-                                    accumulatedOffsetY = 0f
-                                },
-                                onDragEnd = {
-                                    draggingIndex = null
-                                    accumulatedOffsetY = 0f
-                                },
-                                onDragCancel = {
-                                    draggingIndex = null
-                                    accumulatedOffsetY = 0f
-                                },
-                                onDrag = { change, dragAmount ->
-                                    change.consume()
-                                    accumulatedOffsetY += dragAmount.y
-                                    val thresholdPx = 160f
-
-                                    if (accumulatedOffsetY > thresholdPx && index < currentList.size - 1) {
-                                        moveExercise(index, index + 1, currentDayName)
-                                        draggingIndex = index + 1
-                                        accumulatedOffsetY = 0f
-                                    } else if (accumulatedOffsetY < -thresholdPx && index > 0) {
-                                        moveExercise(index, index - 1, currentDayName)
-                                        draggingIndex = index - 1
-                                        accumulatedOffsetY = 0f
-                                    }
-                                }
-                            )
-                        }
+                        onDeleteClick = { exerciseToDelete = exercise }
                     )
                 }
 
@@ -394,6 +320,48 @@ fun WorkoutApp() {
                 onRunningStateChange = { running -> isTimerRunning = running }
             )
         }
+    }
+
+    // --- PANNELLO "INCOLLA IN: (LISTA SCHEDE)" ---
+    exerciseToCopy?.let { exToCopy ->
+        AlertDialog(
+            onDismissRequest = { exerciseToCopy = null },
+            title = { Text("Incolla \"${exToCopy.nome}\" in:", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    days.forEach { targetDay ->
+                        OutlinedButton(
+                            onClick = {
+                                val pasted = exToCopy.copy(
+                                    id = "${targetDay}_${System.currentTimeMillis()}",
+                                    giorno = targetDay
+                                )
+                                val newList = exercises + pasted
+                                exercises = newList
+                                WorkoutCsvManager.saveExercises(context, newList)
+                                Toast.makeText(context, "Esercizio incollato in \"$targetDay\"", Toast.LENGTH_SHORT).show()
+                                exerciseToCopy = null
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("📋 $targetDay", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                Button(
+                    onClick = { exerciseToCopy = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                ) {
+                    Text("Annulla")
+                }
+            }
+        )
     }
 
     if (showConfirmExerciseChangeDialog) {
