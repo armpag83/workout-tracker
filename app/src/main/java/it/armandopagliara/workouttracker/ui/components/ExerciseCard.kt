@@ -1,4 +1,4 @@
-// 1.1.7
+// 1.1.8
 package it.armandopagliara.workouttracker.ui.components
 
 import androidx.compose.foundation.BorderStroke
@@ -31,11 +31,12 @@ fun formatRecupero(recuperoStr: String): String {
     }
 }
 
-/** Componente Card con drag handle per il riordinamento e pulsante di copia */
+/** Componente Card con feedback visivo durante il trascinamento e pulsante di copia */
 @Composable
 fun ExerciseCard(
     exercise: Exercise,
     isHighlighted: Boolean,
+    isDragging: Boolean = false,
     onCardClick: () -> Unit,
     onCopyClick: () -> Unit,
     onEditClick: () -> Unit,
@@ -50,16 +51,26 @@ fun ExerciseCard(
 
     val detailsText = detailsList.joinToString(" | ")
 
+    val containerColor = when {
+        isDragging -> MaterialTheme.colorScheme.secondaryContainer
+        isHighlighted -> MaterialTheme.colorScheme.primaryContainer
+        else -> MaterialTheme.colorScheme.surface
+    }
+
+    val elevation = when {
+        isDragging -> 12.dp
+        isHighlighted -> 6.dp
+        else -> 2.dp
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .clickable { onCardClick() },
-        colors = CardDefaults.cardColors(
-            containerColor = if (isHighlighted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-        ),
-        border = if (isHighlighted) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isHighlighted) 6.dp else 2.dp)
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        border = if (isHighlighted || isDragging) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+        elevation = CardDefaults.cardElevation(defaultElevation = elevation)
     ) {
         Row(
             modifier = Modifier
@@ -67,11 +78,11 @@ fun ExerciseCard(
                 .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icona di trascinamento per riordinare
+            // Icona di trascinamento
             Icon(
                 imageVector = Icons.Default.DragHandle,
                 contentDescription = "Trascina per riordinare",
-                tint = MaterialTheme.colorScheme.outline,
+                tint = if (isDragging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                 modifier = dragModifier
                     .padding(end = 8.dp)
                     .size(24.dp)
@@ -82,13 +93,13 @@ fun ExerciseCard(
                     text = exercise.nome,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
-                    color = if (isHighlighted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                    color = if (isHighlighted || isDragging) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                 )
                 if (detailsText.isNotBlank()) {
                     Text(
                         text = detailsText,
                         fontSize = 12.sp,
-                        color = if (isHighlighted) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.secondary
+                        color = if (isHighlighted || isDragging) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.secondary
                     )
                 }
 

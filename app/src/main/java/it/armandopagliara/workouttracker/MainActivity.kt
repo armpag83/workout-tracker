@@ -1,4 +1,4 @@
-// 1.1.7
+// 1.1.8
 package it.armandopagliara.workouttracker
 
 import android.content.Context
@@ -66,8 +66,13 @@ fun WorkoutApp() {
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     var highlightedExerciseId by rememberSaveable { mutableStateOf<String?>(null) }
 
-    // Appunti per Copia & Incolla
+    // Gestione Appunti & Menu Incolla
     var copiedExercise by remember { mutableStateOf<Exercise?>(null) }
+    var showPasteMenu by remember { mutableStateOf(false) }
+
+    // Tracciamento stato Drag & Drop per fluidità
+    var draggingIndex by remember { mutableStateOf<Int?>(null) }
+    var accumulatedOffsetY by remember { mutableFloatOf(0f) }
 
     // Tracciamento stato Timer ed eventuale conferma cambio esercizio
     var isTimerRunning by remember { mutableStateOf(false) }
@@ -96,7 +101,7 @@ fun WorkoutApp() {
     val selectedExercise = exercises.find { it.id == highlightedExerciseId }
     val targetRecuperoSeconds = selectedExercise?.recupero?.toIntOrNull()?.takeIf { it > 0 }
 
-    /** Funzione per spostare l'ordine di un esercizio nella scheda corrente */
+    /** Funzione per riordinare gli esercizi in maniera controllata */
     fun moveExercise(fromIndex: Int, toIndex: Int, currentDay: String) {
         if (fromIndex == toIndex) return
         val dayExercises = exercises.filter { it.giorno == currentDay }.toMutableList()
@@ -177,24 +182,36 @@ fun WorkoutApp() {
                     }
                 },
                 actions = {
-                    // Pulsante Incolla dinamico se c'è un esercizio in memoria
+                    // Icona Azioni Incolla (compare se c'è un esercizio copiato negli appunti)
                     copiedExercise?.let { copied ->
-                        TextButton(
-                            onClick = {
-                                val currentDay = days.getOrElse(selectedTab.coerceAtMost((days.size - 1).coerceAtLeast(0))) { "Giorno 1" }
-                                val pasted = copied.copy(
-                                    id = "${currentDay}_${System.currentTimeMillis()}",
-                                    giorno = currentDay
+                        Box {
+                            IconButton(onClick = { showPasteMenu = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.ContentPaste,
+                                    contentDescription = "Azioni Appunti",
+                                    tint = MaterialTheme.colorScheme.primary
                                 )
-                                val newList = exercises + pasted
-                                exercises = newList
-                                WorkoutCsvManager.saveExercises(context, newList)
-                                Toast.makeText(context, "\"${copied.nome}\" incollato in $currentDay", Toast.LENGTH_SHORT).show()
                             }
-                        ) {
-                            Icon(Icons.Default.ContentPaste, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Incolla", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            DropdownMenu(
+                                expanded = showPasteMenu,
+                                onDismissRequest = { showPasteMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("📋 Incolla esercizio (\"${copied.nome}\")") },
+                                    onClick = {
+                                        showPasteMenu = false
+                                        val currentDay = days.getOrElse(selectedTab.coerceAtMost((days.size - 1).coerceAtLeast(0))) { "Giorno 1" }
+                                        val pasted = copied.copy(
+                                            id = "${currentDay}_${System.currentTimeMillis()}",
+                                            giorno = currentDay
+                                        )
+                                        val newList = exercises + pasted
+                                        exercises = newList
+                                        WorkoutCsvManager.saveExercises(context, newList)
+                                        Toast.makeText(context, "\"${copied.nome}\" incollato in $currentDay", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            }
                         }
                     }
 
@@ -291,10 +308,12 @@ fun WorkoutApp() {
             ) {
                 itemsIndexed(currentList, key = { _, exercise -> exercise.id }) { index, exercise ->
                     val isHighlighted = exercise.id == highlightedExerciseId
+                    val isDraggingThis = draggingIndex == index
 
                     ExerciseCard(
                         exercise = exercise,
                         isHighlighted = isHighlighted,
+                        isDragging = isDraggingThis,
                         onCardClick = {
                             val targetSelection = if (isHighlighted) null else exercise.id
                             if (isTimerRunning && targetSelection != highlightedExerciseId) {
@@ -306,18 +325,37 @@ fun WorkoutApp() {
                         },
                         onCopyClick = {
                             copiedExercise = exercise
-                            Toast.makeText(context, "Esercizio \"${exercise.nome}\" copiato negli appunti!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Copiato \"${exercise.nome}\"", Toast.LENGTH_SHORT).show()
                         },
                         onEditClick = { exerciseToEdit = exercise },
                         onDeleteClick = { exerciseToDelete = exercise },
                         dragModifier = Modifier.pointerInput(Unit) {
                             detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    draggingIndex = index
+                                    accumulatedOffsetY = 0f
+                                },
+                                onDragEnd = {
+                                    draggingIndex = null
+                                    accumulatedOffsetY = 0f
+                                },
+                                onDragCancel = {
+                                    draggingIndex = null
+                                    accumulatedOffsetY = 0f
+                                },
                                 onDrag = { change, dragAmount ->
                                     change.consume()
-                                    if (dragAmount.y > 30 && index < currentList.size - 1) {
+                                    accumulatedOffsetY += dragAmount.y
+                                    val thresholdPx = 160f // Soglia fluida pari all'altezza di una card
+
+                                    if (accumulatedOffsetY > thresholdPx && index < currentList.size - 1) {
                                         moveExercise(index, index + 1, currentDayName)
-                                    } else if (dragAmount.y < -30 && index > 0) {
+                                        draggingIndex = index + 1
+                                        accumulatedOffsetY = 0f
+                                    } else if (accumulatedOffsetY < -thresholdPx && index > 0) {
                                         moveExercise(index, index - 1, currentDayName)
+                                        draggingIndex = index - 1
+                                        accumulatedOffsetY = 0f
                                     }
                                 }
                             )
