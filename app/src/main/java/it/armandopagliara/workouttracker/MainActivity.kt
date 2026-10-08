@@ -1,4 +1,4 @@
-// DEV_0.2.8
+// DEV_0.2.10
 package it.armandopagliara.workouttracker
 
 import android.content.Context
@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WorkoutApp() {
     val context = LocalContext.current
-    val currentAppVersion = "DEV_0.2.9"
+    val currentAppVersion = "DEV_0.2.10"
 
     var exercises by remember { mutableStateOf(WorkoutCsvManager.loadExercises(context)) }
     var selectedTab by rememberSaveable { mutableStateOf(0) }
@@ -183,8 +183,9 @@ fun WorkoutApp() {
                         Text("Nuova scheda", fontSize = 13.sp)
                     }
 
-                    TextButton(onClick = { showCsvAccessConfirmDialog = true }) {
-                        Text("⚙️ CSV", fontSize = 13.sp)
+                    // Pulsante impostazioni con la sola icona dell'ingranaggio
+                    IconButton(onClick = { showCsvAccessConfirmDialog = true }) {
+                        Text("⚙️", fontSize = 18.sp)
                     }
 
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {

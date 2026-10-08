@@ -1,3 +1,4 @@
+// DEV_0.2.10
 package it.armandopagliara.workouttracker.ui.components
 
 import android.media.AudioManager
@@ -14,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
-/** Pannello Cronometro / Timer sincronizzato con l'ID dell'esercizio selezionato */
+/** Pannello Cronometro / Timer sincronizzato con l'esercizio e il relativo tempo di recupero */
 @Composable
 fun StopwatchPanel(
     targetRecuperoSeconds: Int?,
@@ -34,8 +35,8 @@ fun StopwatchPanel(
         onRunningStateChange(isRunning && isTimerMode)
     }
 
-    // Si attiva a OGNI cambio di esercizio selezionato (anche a parità di secondi di recupero)
-    LaunchedEffect(selectedExerciseId) {
+    // Si attiva a OGNI cambio di esercizio O modifica del tempo di recupero
+    LaunchedEffect(selectedExerciseId, targetRecuperoSeconds) {
         isRunning = false
         isBlinking = false
         blinkState = false
