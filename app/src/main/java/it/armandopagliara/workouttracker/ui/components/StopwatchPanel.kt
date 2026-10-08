@@ -80,8 +80,8 @@ fun StopwatchPanel(
                     blinkState = true
                     if (isSoundEnabled) {
                         repeat(3) {
-                            toneGen?.startTone(ToneGenerator.TONE_CDMA_HIGH_L, 50)
-                            delay(80L)
+                            toneGen?.startTone(ToneGenerator.TONE_CDMA_MED_L, 100)
+                            delay(160L)
                         }
                     } else {
                         delay(240L)
