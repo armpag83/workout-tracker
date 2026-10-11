@@ -1,4 +1,4 @@
-// DEV_0.2.10
+// DEV_0.2.11
 package it.armandopagliara.workouttracker.ui.components
 
 import android.media.AudioManager
@@ -68,7 +68,7 @@ fun StopwatchPanel(
         }
     }
 
-    // Allarme visivo e sonoro (5 lampeggi con 3 bip veloci)
+    // Allarme visivo e sonoro (5 lampeggi con 3 bip a frequenza e ritmo ammorbiditi)
     LaunchedEffect(isBlinking) {
         if (isBlinking) {
             var toneGen: ToneGenerator? = null
@@ -80,8 +80,9 @@ fun StopwatchPanel(
                     blinkState = true
                     if (isSoundEnabled) {
                         repeat(3) {
-                            toneGen?.startTone(ToneGenerator.TONE_CDMA_MED_L, 100)
-                            delay(160L)
+                            // TONE_CDMA_LOW_L porta la frequenza nella banda dei ~500 Hz (vicino al Re 5)
+                            toneGen?.startTone(ToneGenerator.TONE_CDMA_LOW_L, 140)
+                            delay(220L) // Cadenza più lenta e scandita
                         }
                     } else {
                         delay(240L)

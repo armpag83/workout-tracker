@@ -1,6 +1,7 @@
-// DEV_0.2.10
+// DEV_0.2.11
 package it.armandopagliara.workouttracker
 
+import it.armandopagliara.workouttracker.BuildConfig
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
@@ -57,7 +58,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WorkoutApp() {
     val context = LocalContext.current
-    val currentAppVersion = "DEV_0.2.10"
+    val currentAppVersion = BuildConfig.VERSION_NAME
 
     var exercises by remember { mutableStateOf(WorkoutCsvManager.loadExercises(context)) }
     var selectedTab by rememberSaveable { mutableStateOf(0) }
