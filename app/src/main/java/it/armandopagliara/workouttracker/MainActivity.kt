@@ -1,7 +1,6 @@
-// DEV_0.2.11
+// DEV_0.2.12
 package it.armandopagliara.workouttracker
 
-import it.armandopagliara.workouttracker.BuildConfig
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
@@ -21,6 +20,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -93,6 +94,23 @@ fun WorkoutApp() {
 
     val selectedExercise = exercises.find { it.id == highlightedExerciseId }
     val targetRecuperoSeconds = selectedExercise?.recupero?.toIntOrNull()?.takeIf { it > 0 }
+
+    /** Sposta un'intera scheda a sinistra o a destra nell'elenco */
+    fun moveDay(fromIndex: Int, toIndex: Int) {
+        val dayList = days.toMutableList()
+        if (fromIndex in dayList.indices && toIndex in dayList.indices) {
+            val movedDay = dayList.removeAt(fromIndex)
+            dayList.add(toIndex, movedDay)
+
+            val reorderedExercises = dayList.flatMap { day ->
+                exercises.filter { it.giorno == day }
+            }
+
+            exercises = reorderedExercises
+            WorkoutCsvManager.saveExercises(context, reorderedExercises)
+            selectedTab = toIndex
+        }
+    }
 
     /** Sposta un esercizio su o giù nella scheda corrente */
     fun moveExercise(fromIndex: Int, toIndex: Int, currentDay: String) {
@@ -184,7 +202,6 @@ fun WorkoutApp() {
                         Text("Nuova scheda", fontSize = 13.sp)
                     }
 
-                    // Pulsante impostazioni con la sola icona dell'ingranaggio
                     IconButton(onClick = { showCsvAccessConfirmDialog = true }) {
                         Text("⚙️", fontSize = 18.sp)
                     }
@@ -231,19 +248,51 @@ fun WorkoutApp() {
                         text = {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
-                                Text(dayName, fontSize = 13.sp)
+                                // Freccia Sinistra (visibile solo se la scheda è selezionata)
                                 if (isSelected) {
                                     IconButton(
+                                        onClick = { moveDay(index, index - 1) },
+                                        enabled = index > 0,
+                                        modifier = Modifier.size(22.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.KeyboardArrowLeft,
+                                            contentDescription = "Sposta scheda a sinistra",
+                                            modifier = Modifier.size(16.dp),
+                                            tint = if (index > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                        )
+                                    }
+                                }
+
+                                Text(dayName, fontSize = 13.sp)
+
+                                if (isSelected) {
+                                    // Pulsante Rinomina
+                                    IconButton(
                                         onClick = { showRenameDayDialog = true },
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(22.dp)
                                     ) {
                                         Icon(
                                             Icons.Default.Edit,
                                             contentDescription = "Rinomina Scheda",
                                             modifier = Modifier.size(14.dp),
                                             tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+
+                                    // Freccia Destra (visibile solo se la scheda è selezionata)
+                                    IconButton(
+                                        onClick = { moveDay(index, index + 1) },
+                                        enabled = index < days.size - 1,
+                                        modifier = Modifier.size(22.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.KeyboardArrowRight,
+                                            contentDescription = "Sposta scheda a destra",
+                                            modifier = Modifier.size(16.dp),
+                                            tint = if (index < days.size - 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                                         )
                                     }
                                 }

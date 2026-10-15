@@ -1,7 +1,6 @@
-// DEV_0.2.8
+// DEV_0.2.12
 package it.armandopagliara.workouttracker.ui.dialogs
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -13,22 +12,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Componente per la guida all'uso e il changelog di versione */
+/** Dialogo di benvenuto e guida rapida aggiornato con le ultime funzionalità */
 @Composable
 fun WelcomeTutorialDialog(
     versionName: String,
-    initialDontShowAgain: Boolean = true,
-    onDismiss: (dontShowAgain: Boolean) -> Unit
+    initialDontShowAgain: Boolean,
+    onDismiss: (Boolean) -> Unit
 ) {
     var dontShowAgain by remember { mutableStateOf(initialDontShowAgain) }
 
     AlertDialog(
         onDismissRequest = { onDismiss(dontShowAgain) },
         title = {
-            Column {
-                Text(text = "Benvenuto in Workout Tracker!", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text(text = "Guida e novità versione $versionName", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
-            }
+            Text(
+                text = "Workout Tracker v$versionName",
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
         },
         text = {
             Column(
@@ -37,32 +37,92 @@ fun WelcomeTutorialDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(text = "Novità e funzionalità:", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                
-                Text(text = "• 🔀 Riordinamento Esercizi: usa le frecce per spostare gli esercizi e riordinarli.", fontSize = 13.sp)
-                Text(text = "• 📋 Copia & Incolla: copia un esercizio con l'icona 📋 e incollalo facilmente in un'altra scheda.", fontSize = 13.sp)
-                Text(text = "• ⏱️ Timer & Reset Intelligente: conto alla rovescia con tasto RST per ripristinare il recupero.", fontSize = 13.sp)
-                Text(text = "• 🔔 Allarme Visivo e Acustico: allo scadere del tempo lo schermo lampeggia con 3 bip veloci. Muto attivabile con 🔔/🔕.", fontSize = 13.sp)
-                Text(text = "• ✏️ Modifica Dati & CSV: modifica carico, note e target, oppure importa/esporta backup CSV.", fontSize = 13.sp)
+                Text(
+                    text = "Benvenuto! Ecco le principali funzionalità e le ultime novità disponibili:",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                HorizontalDivider()
+
+                TutorialFeatureItem(
+                    icon = "↔️",
+                    title = "Riordinamento Schede",
+                    description = "Seleziona una scheda e usa le frecce < e > per spostarla a sinistra o a destra nell'elenco."
+                )
+
+                TutorialFeatureItem(
+                    icon = "↕️",
+                    title = "Riordinamento Esercizi",
+                    description = "Tocca un esercizio per evidenziarlo e usa le frecce ↑ e ↓ a sinistra per cambiarne la posizione."
+                )
+
+                TutorialFeatureItem(
+                    icon = "📋",
+                    title = "Copia & Incolla Smart",
+                    description = "Duplica un esercizio in qualsiasi scheda dal menu \"Incolla in:\". I duplicati ricevono automaticamente il suffisso \"copia\"."
+                )
+
+                TutorialFeatureItem(
+                    icon = "⏱️",
+                    title = "Timer Reattivo & Suoni",
+                    description = "Il timer si aggiorna istantaneamente quando modifichi il recupero. Allarme visivo e sonoro bilanciato a fine tempo."
+                )
+
+                TutorialFeatureItem(
+                    icon = "⚙️",
+                    title = "Gestione CSV & Backup",
+                    description = "Modifica direttamente il testo, importa o esporta il tuo file CSV toccando l'icona dell'ingranaggio in alto."
+                )
+
+                HorizontalDivider()
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable { dontShowAgain = !dontShowAgain }
+                    modifier = Modifier.padding(top = 4.dp)
                 ) {
                     Checkbox(
                         checked = dontShowAgain,
                         onCheckedChange = { dontShowAgain = it }
                     )
-                    Text(text = "Non mostrare più per questo aggiornamento", fontSize = 12.sp)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Non mostrare più per questa versione",
+                        fontSize = 12.sp
+                    )
                 }
             }
         },
         confirmButton = {
             Button(onClick = { onDismiss(dontShowAgain) }) {
-                Text("Chiudi")
+                Text("Ho capito")
             }
         }
     )
+}
+
+@Composable
+private fun TutorialFeatureItem(
+    icon: String,
+    title: String,
+    description: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            text = icon,
+            fontSize = 16.sp,
+            modifier = Modifier.padding(end = 8.dp, top = 2.dp)
+        )
+        Column {
+            Text(text = title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text(
+                text = description,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
 }
