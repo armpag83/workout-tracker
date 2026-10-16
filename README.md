@@ -1,5 +1,6 @@
 # workout-tracker
 Benvenuto! Ecco le principali funzionalità e le ultime novità disponibili:
+
 ↔️ Riordinamento Schede
 Seleziona una scheda e usa le frecce < e > per spostarla a sinistra o a destra nell'elenco.
 
