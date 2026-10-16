@@ -13,7 +13,7 @@ android {
         targetSdk 34
         
         versionCode 20
-        versionName "1.0.0"
+        versionName "DEV_1.0.0"
 
         // Abilitato per gestire l'indicizzazione DEX di librerie ampie come material-icons-extended
         multiDexEnabled true
