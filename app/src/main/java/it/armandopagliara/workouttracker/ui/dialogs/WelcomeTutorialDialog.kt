@@ -1,4 +1,3 @@
-// DEV_0.3.0
 package it.armandopagliara.workouttracker.ui.dialogs
 
 import androidx.compose.foundation.layout.*

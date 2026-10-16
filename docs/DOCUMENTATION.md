@@ -2,7 +2,7 @@ WORKOUT TRACKER - DOCUMENTAZIONE UFFICIALE E SPECIFICHE FUNZIONALI
 
 Applicazione: Workout Tracker
 Package: it.armandopagliara.workouttracker
-Versione Corrente: DEV_0.3.0 (Versione target per la release ufficiale: 1.0.0)
+Versione Corrente: 1.0.0
 Piattaforma: Android (API minimale 21 / Target SDK 34)
 
 
@@ -85,6 +85,7 @@ Tabella dei Campi CSV:
 
 5. REGISTRO DELLE VERSIONI (CHANGELOG)
 
+- 1.0.0: Versione pronta per il caricamento su Play Store
 - DEV_0.3.0: Rinominato il campo "giorno" in "scheda" in tutto il codice e nel CSV; integrato il Gestore di Salvataggi Locali nell'app (LocalWorkoutStore)
 - DEV_0.2.12: Aggiunte frecce direzionali < e > per riordinare le schede.
 - DEV_0.2.11: Spostata la versione in BuildConfig.VERSION_NAME legata a app/build.gradle.
