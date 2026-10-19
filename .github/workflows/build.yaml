@@ -4,7 +4,7 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch: # Permette l'avvio manuale da GitHub Web
+  workflow_dispatch:
 
 jobs:
   build:
@@ -20,11 +20,16 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # Forza l'uso di Gradle 8.4 compatibile con l'Android Gradle Plugin del progetto
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.4'
+
+      # Genera il file debug.keystore mancante sul server di GitHub
+      - name: Genera Debug Keystore
+        run: |
+          mkdir -p ~/.android
+          keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
 
       # Compila l'App Bundle (.aab)
       - name: Genera AAB di Release
