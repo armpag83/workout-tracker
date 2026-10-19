@@ -4,7 +4,7 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch: # Aggiunge il pulsante per avviare la build manualmente da GitHub web
+  workflow_dispatch: # Permette l'avvio manuale da GitHub Web
 
 jobs:
   build:
@@ -20,14 +20,17 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      # Forza l'uso di Gradle 8.4 compatibile con l'Android Gradle Plugin del progetto
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.4'
 
       # Compila l'App Bundle (.aab)
       - name: Genera AAB di Release
         run: gradle bundleRelease
 
-      # Salva il file .aab negli Artifacts scaricabili da web
+      # Salva il file .aab negli Artifacts
       - name: Carica Artifact AAB
         uses: actions/upload-artifact@v4
         with:
