@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId "it.armandopagliara.workouttracker"
-        minSdk 21
+        minSdk 24
         targetSdk 34
         
         versionCode 20
