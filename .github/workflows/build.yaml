@@ -15,18 +15,38 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configurazione Java JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.4'
 
-      # Prepara il debug keystore per la compilazione Gradle
-      - name: Prepara ambiente di build
+      # Genera un Keystore e un certificato PEM usando dati fissi
+      - name: Prepara Keystore e Certificato PEM
+        run: |
+          keytool -genkeypair -v \
+            -keystore permanent-release.keystore \
+            -alias armpagKey \
+            -keypass ArmPagPass2026! \
+            -storepass ArmPagPass2026! \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Armando Pagliara, OU=Dev, O=ArmPag, C=IT"
+          
+          # Esporta il certificato PEM per Google Play Console
+          keytool -export -rfc \
+            -keystore permanent-release.keystore \
+            -alias armpagKey \
+            -file upload_certificate.pem \
+            -storepass ArmPagPass2026!
+
+      # Prepara ambiente debug temporaneo per Gradle
+      - name: Prepara ambiente debug
         run: |
           mkdir -p ~/.android
           keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
@@ -35,20 +55,26 @@ jobs:
       - name: Genera AAB
         run: gradle bundleRelease
 
-      # Rimuove la firma di debug precedente per evitare la doppia catena di certificati
-      - name: Rimuovi firma di debug precedente
-        run: |
-          zip -d app/build/outputs/bundle/release/app-release.aab "META-INF/*" || true
+      # Rimuove firma di debug
+      - name: Rimuovi firma di debug
+        run: zip -d app/build/outputs/bundle/release/app-release.aab "META-INF/*" || true
 
-      # Genera la chiave di Release ed esegue l'unica firma ufficiale
-      - name: Firma AAB con chiave di Release
+      # Firma l'AAB con la chiave permanente
+      - name: Firma AAB con chiave permanente
         run: |
-          keytool -genkeypair -v -keystore release.keystore -alias armpagKey -keypass ArmPagPass2026! -storepass ArmPagPass2026! -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Armando Pagliara, OU=Dev, O=ArmPag, C=IT"
-          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore release.keystore -storepass ArmPagPass2026! -keypass ArmPagPass2026! app/build/outputs/bundle/release/app-release.aab armpagKey
+          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
+            -keystore permanent-release.keystore \
+            -storepass ArmPagPass2026! \
+            -keypass ArmPagPass2026! \
+            app/build/outputs/bundle/release/app-release.aab \
+            armpagKey
 
-      # Carica l'Artifact AAB con firma singola
-      - name: Carica Artifact AAB
+      # Carica l'AAB, il Keystore e il Certificato PEM negli Artifacts
+      - name: Carica Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-aab
-          path: app/build/outputs/bundle/release/
+          name: app-release-and-keys
+          path: |
+            app/build/outputs/bundle/release/app-release.aab
+            permanent-release.keystore
+            upload_certificate.pem
