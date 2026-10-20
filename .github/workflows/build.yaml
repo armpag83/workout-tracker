@@ -25,7 +25,7 @@ jobs:
         with:
           gradle-version: '8.4'
 
-      # Prepara il debug keystore locale per la compilazione Gradle
+      # Prepara il debug keystore per la compilazione Gradle
       - name: Prepara ambiente di build
         run: |
           mkdir -p ~/.android
@@ -35,13 +35,18 @@ jobs:
       - name: Genera AAB
         run: gradle bundleRelease
 
-      # Genera la chiave di Release ed esegue la firma ufficiale dell'AAB
+      # Rimuove la firma di debug precedente per evitare la doppia catena di certificati
+      - name: Rimuovi firma di debug precedente
+        run: |
+          zip -d app/build/outputs/bundle/release/app-release.aab "META-INF/*" || true
+
+      # Genera la chiave di Release ed esegue l'unica firma ufficiale
       - name: Firma AAB con chiave di Release
         run: |
           keytool -genkeypair -v -keystore release.keystore -alias armpagKey -keypass ArmPagPass2026! -storepass ArmPagPass2026! -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Armando Pagliara, OU=Dev, O=ArmPag, C=IT"
           jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore release.keystore -storepass ArmPagPass2026! -keypass ArmPagPass2026! app/build/outputs/bundle/release/app-release.aab armpagKey
 
-      # Carica l'Artifact AAB firmato
+      # Carica l'Artifact AAB con firma singola
       - name: Carica Artifact AAB
         uses: actions/upload-artifact@v4
         with:
