@@ -25,17 +25,23 @@ jobs:
         with:
           gradle-version: '8.4'
 
-      # Genera il file debug.keystore mancante sul server di GitHub
-      - name: Genera Debug Keystore
+      # Prepara il debug keystore locale per la compilazione Gradle
+      - name: Prepara ambiente di build
         run: |
           mkdir -p ~/.android
           keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
 
       # Compila l'App Bundle (.aab)
-      - name: Genera AAB di Release
+      - name: Genera AAB
         run: gradle bundleRelease
 
-      # Salva il file .aab negli Artifacts
+      # Genera la chiave di Release ed esegue la firma ufficiale dell'AAB
+      - name: Firma AAB con chiave di Release
+        run: |
+          keytool -genkeypair -v -keystore release.keystore -alias armpagKey -keypass ArmPagPass2026! -storepass ArmPagPass2026! -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Armando Pagliara, OU=Dev, O=ArmPag, C=IT"
+          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore release.keystore -storepass ArmPagPass2026! -keypass ArmPagPass2026! app/build/outputs/bundle/release/app-release.aab armpagKey
+
+      # Carica l'Artifact AAB firmato
       - name: Carica Artifact AAB
         uses: actions/upload-artifact@v4
         with:
