@@ -25,7 +25,12 @@ jobs:
         with:
           gradle-version: '8.4'
 
-      # Prepara ambiente debug temporaneo
+      # Ripristina il keystore permanente dal Secret di GitHub
+      - name: Decodifica Keystore permanente
+        run: |
+          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > permanent-release.keystore
+
+      # Prepara ambiente debug temporaneo per la compilazione
       - name: Prepara ambiente debug
         run: |
           mkdir -p ~/.android
@@ -39,7 +44,7 @@ jobs:
       - name: Rimuovi firma di debug
         run: zip -d app/build/outputs/bundle/release/app-release.aab "META-INF/*" || true
 
-      # Firma l'AAB con la tua chiave permanente
+      # Firma l'AAB con la chiave permanente ripristinata
       - name: Firma AAB con chiave permanente
         run: |
           jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
@@ -49,7 +54,7 @@ jobs:
             app/build/outputs/bundle/release/app-release.aab \
             armpagKey
 
-      # Carica sia l'AAB che il file di mapping (deoffuscamento)
+      # Carica l'AAB e il file di mapping (deoffuscamento) negli Artifacts
       - name: Carica Artifacts
         uses: actions/upload-artifact@v4
         with:
