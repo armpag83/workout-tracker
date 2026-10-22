@@ -25,27 +25,7 @@ jobs:
         with:
           gradle-version: '8.4'
 
-      # Genera un Keystore e un certificato PEM usando dati fissi
-      - name: Prepara Keystore e Certificato PEM
-        run: |
-          keytool -genkeypair -v \
-            -keystore permanent-release.keystore \
-            -alias armpagKey \
-            -keypass ArmPagPass2026! \
-            -storepass ArmPagPass2026! \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Armando Pagliara, OU=Dev, O=ArmPag, C=IT"
-          
-          # Esporta il certificato PEM per Google Play Console
-          keytool -export -rfc \
-            -keystore permanent-release.keystore \
-            -alias armpagKey \
-            -file upload_certificate.pem \
-            -storepass ArmPagPass2026!
-
-      # Prepara ambiente debug temporaneo per Gradle
+      # Prepara ambiente debug temporaneo
       - name: Prepara ambiente debug
         run: |
           mkdir -p ~/.android
@@ -55,11 +35,11 @@ jobs:
       - name: Genera AAB
         run: gradle bundleRelease
 
-      # Rimuove firma di debug
+      # Rimuove la firma temporanea di debug
       - name: Rimuovi firma di debug
         run: zip -d app/build/outputs/bundle/release/app-release.aab "META-INF/*" || true
 
-      # Firma l'AAB con la chiave permanente
+      # Firma l'AAB con la tua chiave permanente
       - name: Firma AAB con chiave permanente
         run: |
           jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
@@ -69,12 +49,11 @@ jobs:
             app/build/outputs/bundle/release/app-release.aab \
             armpagKey
 
-      # Carica l'AAB, il Keystore e il Certificato PEM negli Artifacts
+      # Carica sia l'AAB che il file di mapping (deoffuscamento)
       - name: Carica Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-and-keys
+          name: app-release-artifacts
           path: |
             app/build/outputs/bundle/release/app-release.aab
-            permanent-release.keystore
-            upload_certificate.pem
+            app/build/outputs/mapping/release/mapping.txt

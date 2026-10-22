@@ -5,14 +5,14 @@ plugins {
 
 android {
     namespace 'it.armandopagliara.workouttracker'
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
         applicationId "it.armandopagliara.workouttracker"
         minSdk 24
-        targetSdk 34
+        targetSdk 36
     
-        versionCode 20
+        versionCode 21
         versionName "1.0.0"
 
         // Abilitato per gestire l'indicizzazione DEX di librerie ampie come material-icons-extended
