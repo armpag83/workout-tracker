@@ -5,23 +5,21 @@ plugins {
 
 android {
     namespace 'it.armandopagliara.workouttracker'
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
         applicationId "it.armandopagliara.workouttracker"
         minSdk 24
-        targetSdk 34
-        
-        versionCode 20
-        versionName "DEV_1.0.0"
+        targetSdk 36
+    
+        versionCode 23
+        versionName "DEV_1.0.1"
 
-        // Abilitato per gestire l'indicizzazione DEX di librerie ampie come material-icons-extended
         multiDexEnabled true
     }
 
     signingConfigs {
         debug {
-            // Punta al keystore persistente generato dal workflow in GitHub Actions
             storeFile file("${System.getProperty('user.home')}/.android/debug.keystore")
             storePassword 'android'
             keyAlias 'androiddebugkey'
@@ -34,16 +32,15 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            minifyEnabled false
+            minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            // In modalità debug/test condivide la stessa chiave
             signingConfig signingConfigs.debug
         }
     }
 
     buildFeatures {
         compose true
-        buildConfig true // Genera la classe BuildConfig con la variabile VERSION_NAME
+        buildConfig true
     }
 
     composeOptions {
@@ -69,5 +66,5 @@ dependencies {
     implementation 'androidx.compose.ui:ui-graphics'
     implementation 'androidx.compose.ui:ui-tooling-preview'
     implementation 'androidx.compose.material3:material3'
-    implementation "androidx.compose.material:material-icons-extended"
+    implementation 'androidx.compose.material:material-icons-extended'
 }

@@ -1,4 +1,3 @@
-// 1.1.8
 package it.armandopagliara.workouttracker.ui.components
 
 import androidx.compose.foundation.BorderStroke
