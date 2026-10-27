@@ -21,9 +21,9 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      # STEP AGGIUNTO: Genera il wrapper gradlew direttamente sul server GitHub
+      # Fissata la versione di Gradle a 8.7 compatibile con AGP 8.2.2
       - name: Generate Gradle Wrapper
-        run: gradle wrapper
+        run: gradle wrapper --gradle-version 8.7
 
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
