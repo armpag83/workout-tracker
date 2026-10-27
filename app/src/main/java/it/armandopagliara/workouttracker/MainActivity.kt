@@ -3,7 +3,6 @@ package it.armandopagliara.workouttracker
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,7 +19,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import it.armandopagliara.workouttracker.ui.theme.WorkoutTrackerTheme
 import kotlinx.coroutines.delay
 
 data class Esercizio(
@@ -43,7 +41,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            WorkoutTrackerTheme {
+            MaterialTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -98,6 +96,9 @@ fun WorkoutTrackerScreen() {
 
     var selectedSchedaIndex by remember { mutableIntStateOf(0) }
     var selectedEsercizioIndex by remember { mutableIntStateOf(-1) }
+
+    // Riferimento alla scheda corrente disponibile per tutto il Composable (inclusi i Dialog)
+    val correnteScheda = schede.getOrNull(selectedSchedaIndex)
     
     var showNewSchedaDialog by remember { mutableStateOf(false) }
     var showNewEsercizioDialog by remember { mutableStateOf(false) }
@@ -197,7 +198,6 @@ fun WorkoutTrackerScreen() {
             )
         },
         bottomBar = {
-            // Timer Bar In Basso
             Surface(
                 tonalElevation = 8.dp,
                 shadowElevation = 8.dp,
@@ -277,7 +277,7 @@ fun WorkoutTrackerScreen() {
                         .padding(horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Pulsante '+' FISSO a sinistra (non scorre con le schede)
+                    // Pulsante '+' FISSO a sinistra
                     IconButton(
                         onClick = { showNewEsercizioDialog = true },
                         modifier = Modifier.padding(end = 4.dp)
@@ -289,7 +289,7 @@ fun WorkoutTrackerScreen() {
                         )
                     }
 
-                    // Sezione scorrevole delle Schede
+                    // Schede scorrevoli
                     if (schede.isNotEmpty()) {
                         ScrollableTabRow(
                             selectedTabIndex = selectedSchedaIndex.coerceIn(0, schede.size - 1),
@@ -342,8 +342,7 @@ fun WorkoutTrackerScreen() {
                 }
             }
 
-            // LISTA ESERCIZI DELLA SCHEDA SELEZIONATA
-            val correnteScheda = schede.getOrNull(selectedSchedaIndex)
+            // LISTA ESERCIZI
             if (correnteScheda != null && correnteScheda.esercizi.isNotEmpty()) {
                 LazyColumn(
                     modifier = Modifier
