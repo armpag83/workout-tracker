@@ -1,4 +1,4 @@
-// DEV_1.0.1
+// 1.0.1
 package it.armandopagliara.workouttracker
 
 import android.content.Context
