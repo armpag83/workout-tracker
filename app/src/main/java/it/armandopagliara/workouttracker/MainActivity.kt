@@ -1,4 +1,4 @@
-// DEV_0.3.0
+// DEV_1.0.1
 package it.armandopagliara.workouttracker
 
 import android.content.Context
@@ -10,7 +10,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -28,11 +32,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 
 import it.armandopagliara.workouttracker.data.LocalWorkoutStore
 import it.armandopagliara.workouttracker.data.WorkoutCsvManager
@@ -56,7 +62,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun WorkoutApp() {
     val context = LocalContext.current
@@ -84,6 +90,16 @@ fun WorkoutApp() {
     var showRenameSchedaDialog by remember { mutableStateOf(false) }
     var showDeleteSchedaDialog by remember { mutableStateOf(false) }
     var showCsvAccessConfirmDialog by remember { mutableStateOf(false) }
+
+    // Label temporanea per la pressione prolungata del pulsante '+'
+    var showAddExerciseTooltip by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showAddExerciseTooltip) {
+        if (showAddExerciseTooltip) {
+            delay(3000L)
+            showAddExerciseTooltip = false
+        }
+    }
 
     val sharedPrefs = remember { context.getSharedPreferences("workout_tracker_prefs", Context.MODE_PRIVATE) }
     val lastSeenVersion = sharedPrefs.getString("last_seen_version", "")
@@ -244,70 +260,112 @@ fun WorkoutApp() {
         }
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            ScrollableTabRow(
-                selectedTabIndex = selectedTab.coerceAtMost((schede.size - 1).coerceAtLeast(0)),
-                edgePadding = 8.dp
+            // STRIP TAB CON PULSANTE '+' FISSO SULLA SINISTRA E LABEL DEDICATA SU LONG-PRESS
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 2.dp,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                schede.forEachIndexed { index, schedaName ->
-                    val isSelected = selectedTab == index
-                    Tab(
-                        selected = isSelected,
-                        onClick = { selectedTab = index },
-                        text = {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(2.dp)
-                            ) {
-                                if (isSelected) {
-                                    IconButton(
-                                        onClick = { moveScheda(index, index - 1) },
-                                        enabled = index > 0,
-                                        modifier = Modifier.size(22.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.KeyboardArrowLeft,
-                                            contentDescription = "Sposta scheda a sinistra",
-                                            modifier = Modifier.size(16.dp),
-                                            tint = if (index > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                                        )
-                                    }
-                                }
-
-                                Text(schedaName, fontSize = 13.sp)
-
-                                if (isSelected) {
-                                    IconButton(
-                                        onClick = { showRenameSchedaDialog = true },
-                                        modifier = Modifier.size(22.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Edit,
-                                            contentDescription = "Rinomina Scheda",
-                                            modifier = Modifier.size(14.dp),
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-
-                                    IconButton(
-                                        onClick = { moveScheda(index, index + 1) },
-                                        enabled = index < schede.size - 1,
-                                        modifier = Modifier.size(22.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.KeyboardArrowRight,
-                                            contentDescription = "Sposta scheda a destra",
-                                            modifier = Modifier.size(16.dp),
-                                            tint = if (index < schede.size - 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                                        )
-                                    }
-                                }
-                            }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Contenitore per il pulsante '+' con evento di pressione prolungata
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .padding(start = 4.dp, end = 2.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(
+                                if (showAddExerciseTooltip) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                                else Color.Transparent
+                            )
+                            .combinedClickable(
+                                onClick = { showAddExerciseDialog = true },
+                                onLongClick = { showAddExerciseTooltip = true }
+                            )
+                            .padding(horizontal = 8.dp, vertical = 8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Aggiungi Esercizio",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        AnimatedVisibility(visible = showAddExerciseTooltip) {
+                            Text(
+                                text = "Aggiungi esercizio",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(start = 4.dp, end = 4.dp)
+                            )
                         }
-                    )
-                }
+                    }
 
-                IconButton(onClick = { showAddExerciseDialog = true }) {
-                    Icon(Icons.Default.Add, contentDescription = "Aggiungi Esercizio", tint = MaterialTheme.colorScheme.primary)
+                    // Sezione scorrevole delle Schede
+                    ScrollableTabRow(
+                        selectedTabIndex = selectedTab.coerceAtMost((schede.size - 1).coerceAtLeast(0)),
+                        edgePadding = 0.dp,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        schede.forEachIndexed { index, schedaName ->
+                            val isSelected = selectedTab == index
+                            Tab(
+                                selected = isSelected,
+                                onClick = { selectedTab = index },
+                                text = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        if (isSelected) {
+                                            IconButton(
+                                                onClick = { moveScheda(index, index - 1) },
+                                                enabled = index > 0,
+                                                modifier = Modifier.size(22.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.KeyboardArrowLeft,
+                                                    contentDescription = "Sposta scheda a sinistra",
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = if (index > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                                )
+                                            }
+                                        }
+
+                                        Text(schedaName, fontSize = 13.sp)
+
+                                        if (isSelected) {
+                                            IconButton(
+                                                onClick = { showRenameSchedaDialog = true },
+                                                modifier = Modifier.size(22.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Edit,
+                                                    contentDescription = "Rinomina Scheda",
+                                                    modifier = Modifier.size(14.dp),
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+
+                                            IconButton(
+                                                onClick = { moveScheda(index, index + 1) },
+                                                enabled = index < schede.size - 1,
+                                                modifier = Modifier.size(22.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.KeyboardArrowRight,
+                                                    contentDescription = "Sposta scheda a destra",
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = if (index < schede.size - 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
             }
 
