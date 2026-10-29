@@ -10,7 +10,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -28,11 +32,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 
 import it.armandopagliara.workouttracker.data.LocalWorkoutStore
 import it.armandopagliara.workouttracker.data.WorkoutCsvManager
@@ -56,7 +62,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun WorkoutApp() {
     val context = LocalContext.current
@@ -84,6 +90,16 @@ fun WorkoutApp() {
     var showRenameSchedaDialog by remember { mutableStateOf(false) }
     var showDeleteSchedaDialog by remember { mutableStateOf(false) }
     var showCsvAccessConfirmDialog by remember { mutableStateOf(false) }
+
+    // Label temporanea per la pressione prolungata del pulsante '+'
+    var showAddExerciseTooltip by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showAddExerciseTooltip) {
+        if (showAddExerciseTooltip) {
+            delay(3000L)
+            showAddExerciseTooltip = false
+        }
+    }
 
     val sharedPrefs = remember { context.getSharedPreferences("workout_tracker_prefs", Context.MODE_PRIVATE) }
     val lastSeenVersion = sharedPrefs.getString("last_seen_version", "")
@@ -244,7 +260,7 @@ fun WorkoutApp() {
         }
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            // STRIP TAB CON PULSANTE '+' FISSO SULLA SINISTRA
+            // STRIP TAB CON PULSANTE '+' FISSO SULLA SINISTRA E LABEL DEDICATA SU LONG-PRESS
             Surface(
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 2.dp,
@@ -254,16 +270,36 @@ fun WorkoutApp() {
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Pulsante '+' FISSO a sinistra per aggiungere un esercizio
-                    IconButton(
-                        onClick = { showAddExerciseDialog = true },
-                        modifier = Modifier.padding(start = 4.dp)
+                    // Contenitore per il pulsante '+' con evento di pressione prolungata
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .padding(start = 4.dp, end = 2.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(
+                                if (showAddExerciseTooltip) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                                else Color.Transparent
+                            )
+                            .combinedClickable(
+                                onClick = { showAddExerciseDialog = true },
+                                onLongClick = { showAddExerciseTooltip = true }
+                            )
+                            .padding(horizontal = 8.dp, vertical = 8.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = "Aggiungi Esercizio",
                             tint = MaterialTheme.colorScheme.primary
                         )
+                        AnimatedVisibility(visible = showAddExerciseTooltip) {
+                            Text(
+                                text = "Aggiungi esercizio",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(start = 4.dp, end = 4.dp)
+                            )
+                        }
                     }
 
                     // Sezione scorrevole delle Schede
