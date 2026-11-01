@@ -1,4 +1,4 @@
-// DEV_0.2.11
+// DEV_1.0.2
 package it.armandopagliara.workouttracker.ui.components
 
 import android.media.AudioManager
@@ -10,18 +10,24 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
-/** Pannello Cronometro / Timer sincronizzato con l'esercizio e il relativo tempo di recupero */
+/** Pannello Cronometro / Timer con precisione al decimo di secondo, supporto Tablet e callback di completamento */
 @Composable
 fun StopwatchPanel(
     targetRecuperoSeconds: Int?,
     selectedExerciseId: String?,
-    onRunningStateChange: (Boolean) -> Unit = {}
+    onRunningStateChange: (Boolean) -> Unit = {},
+    onTimerFinished: (() -> Unit)? = null
 ) {
+    // Rilevamento Tablet (+20% scala)
+    val isTablet = LocalConfiguration.current.smallestScreenWidthDp >= 600
+    val scale = if (isTablet) 1.20f else 1.0f
+
     var isTimerMode by remember { mutableStateOf(false) }
     var timeInTenths by remember { mutableLongStateOf(0L) }
     var isRunning by remember { mutableStateOf(false) }
@@ -30,12 +36,12 @@ fun StopwatchPanel(
 
     var isSoundEnabled by rememberSaveable { mutableStateOf(true) }
 
-    // Comunica lo stato di esecuzione del Timer all'esterno
+    // Comunica lo stato di esecuzione all'esterno
     LaunchedEffect(isRunning, isTimerMode) {
         onRunningStateChange(isRunning && isTimerMode)
     }
 
-    // Si attiva a OGNI cambio di esercizio O modifica del tempo di recupero
+    // Si attiva al cambio esercizio o alla modifica del tempo di recupero
     LaunchedEffect(selectedExerciseId, targetRecuperoSeconds) {
         isRunning = false
         isBlinking = false
@@ -49,6 +55,7 @@ fun StopwatchPanel(
         }
     }
 
+    // Ciclo del Timer / Cronometro al decimo di secondo
     LaunchedEffect(isRunning, isTimerMode) {
         while (isRunning) {
             delay(100L)
@@ -58,6 +65,7 @@ fun StopwatchPanel(
                     if (timeInTenths == 0L) {
                         isRunning = false
                         isBlinking = true
+                        onTimerFinished?.invoke() // Avvisa l'Activity per tornare in primo piano
                     }
                 } else {
                     isRunning = false
@@ -68,7 +76,7 @@ fun StopwatchPanel(
         }
     }
 
-    // Allarme visivo e sonoro (5 lampeggi con 3 bip a frequenza e ritmo ammorbiditi)
+    // Allarme visivo (lampeggio rosso) e sonoro
     LaunchedEffect(isBlinking) {
         if (isBlinking) {
             var toneGen: ToneGenerator? = null
@@ -80,9 +88,8 @@ fun StopwatchPanel(
                     blinkState = true
                     if (isSoundEnabled) {
                         repeat(3) {
-                            // TONE_CDMA_LOW_L porta la frequenza nella banda dei ~500 Hz (vicino al Re 5)
                             toneGen?.startTone(ToneGenerator.TONE_CDMA_LOW_L, 140)
-                            delay(220L) // Cadenza più lenta e scandita
+                            delay(220L)
                         }
                     } else {
                         delay(240L)
@@ -117,7 +124,7 @@ fun StopwatchPanel(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = (16 * scale).dp, vertical = (12 * scale).dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -125,7 +132,7 @@ fun StopwatchPanel(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = formattedTime,
-                        fontSize = 30.sp,
+                        fontSize = (30 * scale).sp,
                         fontWeight = FontWeight.Bold,
                         color = textColor
                     )
@@ -134,12 +141,12 @@ fun StopwatchPanel(
                         IconButton(
                             onClick = { isSoundEnabled = !isSoundEnabled },
                             modifier = Modifier
-                                .padding(start = 4.dp)
-                                .size(32.dp)
+                                .padding(start = (4 * scale).dp)
+                                .size((32 * scale).dp)
                         ) {
                             Text(
                                 text = if (isSoundEnabled) "🔔" else "🔕",
-                                fontSize = 18.sp
+                                fontSize = (18 * scale).sp
                             )
                         }
                     }
@@ -147,15 +154,21 @@ fun StopwatchPanel(
 
                 if (isTimerMode) {
                     Text(
-                        text = "Recupero (Timer)",
-                        fontSize = 11.sp,
+                        text = "Recupero/durata (Timer)",
+                        fontSize = (11 * scale).sp,
                         color = if (blinkState) Color.White else MaterialTheme.colorScheme.secondary
+                    )
+                } else {
+                    Text(
+                        text = "Cronometro",
+                        fontSize = (11 * scale).sp,
+                        color = MaterialTheme.colorScheme.secondary
                     )
                 }
             }
 
             Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy((6 * scale).dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(
@@ -165,9 +178,9 @@ fun StopwatchPanel(
                         isRunning = true
                     },
                     enabled = !isRunning && (!isTimerMode || timeInTenths > 0),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    contentPadding = PaddingValues(horizontal = (12 * scale).dp, vertical = (8 * scale).dp)
                 ) {
-                    Text("START", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("START", fontSize = (12 * scale).sp, fontWeight = FontWeight.Bold)
                 }
 
                 Button(
@@ -178,9 +191,9 @@ fun StopwatchPanel(
                     },
                     enabled = isRunning,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    contentPadding = PaddingValues(horizontal = (12 * scale).dp, vertical = (8 * scale).dp)
                 ) {
-                    Text("STOP", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("STOP", fontSize = (12 * scale).sp, fontWeight = FontWeight.Bold)
                 }
 
                 OutlinedButton(
@@ -197,9 +210,9 @@ fun StopwatchPanel(
                             timeInTenths = 0L
                         }
                     },
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    contentPadding = PaddingValues(horizontal = (12 * scale).dp, vertical = (8 * scale).dp)
                 ) {
-                    Text("RST", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("RST", fontSize = (12 * scale).sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

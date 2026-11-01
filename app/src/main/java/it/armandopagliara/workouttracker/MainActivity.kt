@@ -4,6 +4,7 @@ package it.armandopagliara.workouttracker
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.net.Uri
 import android.os.Bundle
 import android.view.WindowManager
 import android.widget.Toast
@@ -57,7 +58,7 @@ class MainActivity : ComponentActivity() {
         
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        // Sblocco rotazione per Tablet (smallestScreenWidth >= 600dp), Blocco Portrait per Smartphone
+        // Abilita la rotazione solo sui Tablet (smallestScreenWidthDp >= 600)
         val isTablet = resources.configuration.smallestScreenWidthDp >= 600
         requestedOrientation = if (isTablet) {
             ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
@@ -65,7 +66,7 @@ class MainActivity : ComponentActivity() {
             ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
 
-        // Mantiene visibile e scura la barra delle notifiche in alto
+        // Barra di stato scura e visibile
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
 
         setContent {
@@ -75,7 +76,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Funzione per riportare l'app in primo piano quando il timer scade
+    // Riporta l'app in primo piano alla scadenza del timer
     fun bringToForeground() {
         try {
             val intent = Intent(this, MainActivity::class.java).apply {
@@ -95,7 +96,6 @@ fun WorkoutApp() {
     val activity = context as? MainActivity
     val currentAppVersion = BuildConfig.VERSION_NAME
 
-    // Scalabilità +20% per Tablet
     val isTablet = LocalConfiguration.current.smallestScreenWidthDp >= 600
     val scale = if (isTablet) 1.20f else 1.0f
 
@@ -461,21 +461,18 @@ fun WorkoutApp() {
                 selectedExerciseId = highlightedExerciseId,
                 onRunningStateChange = { running -> isTimerRunning = running },
                 onTimerFinished = {
-                    // Quando il timer scade, richiama l'app in primo piano se in background
                     activity?.bringToForeground()
                 }
             )
         }
     }
 
-    // --- DIALOGS CON LIMITI E LABEL AGGIORNATE ---
     if (showNewSchedaDialog) {
         var newSchedaName by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showNewSchedaDialog = false },
             title = { Text("Crea Nuova Scheda", fontSize = (18 * scale).sp) },
             text = {
-                // Limit: scheda (40)
                 OutlinedTextField(
                     value = newSchedaName,
                     onValueChange = { newSchedaName = it.take(40) },
@@ -520,7 +517,6 @@ fun WorkoutApp() {
             onDismissRequest = { showRenameSchedaDialog = false },
             title = { Text("Rinomina Scheda", fontSize = (18 * scale).sp) },
             text = {
-                // Limit: scheda (40)
                 OutlinedTextField(
                     value = newSchedaName,
                     onValueChange = { newSchedaName = it.take(40) },
