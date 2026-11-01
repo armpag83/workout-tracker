@@ -1,7 +1,8 @@
-// DEV_1.0.1
+// DEV_1.0.2
 package it.armandopagliara.workouttracker
 
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.os.Bundle
 import android.view.WindowManager
@@ -38,6 +39,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.delay
 
 import it.armandopagliara.workouttracker.data.LocalWorkoutStore
@@ -53,6 +55,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        // Rilevamento Tablet (smallestScreenWidth >= 600dp):
+        // Se è tablet sblocca la rotazione, se è smartphone blocca in Portrait.
+        val isTablet = resources.configuration.smallestScreenWidthDp >= 600
+        requestedOrientation = if (isTablet) {
+            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+
+        // Mantiene visibile la barra di stato (notifiche) scurendo le icone per sfondo chiaro
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
 
         setContent {
             MaterialTheme {
@@ -91,7 +105,6 @@ fun WorkoutApp() {
     var showDeleteSchedaDialog by remember { mutableStateOf(false) }
     var showCsvAccessConfirmDialog by remember { mutableStateOf(false) }
 
-    // Label temporanea per la pressione prolungata del pulsante '+'
     var showAddExerciseTooltip by remember { mutableStateOf(false) }
 
     LaunchedEffect(showAddExerciseTooltip) {
@@ -260,7 +273,6 @@ fun WorkoutApp() {
         }
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            // STRIP TAB CON PULSANTE '+' FISSO SULLA SINISTRA E LABEL DEDICATA SU LONG-PRESS
             Surface(
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 2.dp,
@@ -270,7 +282,6 @@ fun WorkoutApp() {
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Contenitore per il pulsante '+' con evento di pressione prolungata
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
@@ -302,7 +313,6 @@ fun WorkoutApp() {
                         }
                     }
 
-                    // Sezione scorrevole delle Schede
                     ScrollableTabRow(
                         selectedTabIndex = selectedTab.coerceAtMost((schede.size - 1).coerceAtLeast(0)),
                         edgePadding = 0.dp,
@@ -436,7 +446,7 @@ fun WorkoutApp() {
         }
     }
 
-    // --- PANNELLO "INCOLLA IN: (LISTA SCHEDE)" ---
+    // --- DIALOGS ---
     exerciseToCopy?.let { exToCopy ->
         AlertDialog(
             onDismissRequest = { exerciseToCopy = null },
@@ -484,7 +494,6 @@ fun WorkoutApp() {
         )
     }
 
-    // --- DIALOGO SALVA IN ARCHIVIO LOCALE ---
     if (showSavePresetDialog) {
         var presetName by remember { mutableStateOf("") }
         AlertDialog(
@@ -521,7 +530,6 @@ fun WorkoutApp() {
         )
     }
 
-    // --- DIALOGO CARICA DA ARCHIVIO LOCALE ---
     if (showLoadPresetDialog) {
         val savedPresets = remember { LocalWorkoutStore.listSavedPresets(context) }
         AlertDialog(
