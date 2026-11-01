@@ -39,11 +39,11 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WorkoutTracker-DEV_1.0.1-APK
+          name: WorkoutTracker-DEV_1.0.2-APK
           path: app/build/outputs/apk/release/app-release.apk
 
       - name: Upload Mapping File Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mapping-DEV_1.0.1
+          name: mapping-DEV_1.0.2
           path: app/build/outputs/mapping/release/mapping.txt
