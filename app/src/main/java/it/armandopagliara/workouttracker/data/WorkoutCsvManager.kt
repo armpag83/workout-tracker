@@ -9,7 +9,6 @@ object WorkoutCsvManager {
     private const val FILE_NAME = "workout_config.csv"
     private const val CSV_HEADER = "scheda,nome,muscoli,target,recupero,kg,note"
 
-    // Preset "Full Body" sempre disponibile per l'archivio locale o per il caricamento su richiesta
     val FULL_BODY_CSV = """
         scheda,nome,muscoli,target,recupero,kg,note
         Full Body,Riscaldamento tapisroulant,Cardio,10 min,0,,"pendenza 3 velocità 5.5"
@@ -51,8 +50,24 @@ object WorkoutCsvManager {
         return file.readText()
     }
 
+    /** Salva il testo CSV solo previa validazione dei caratteri di controllo e dell'header */
     fun saveRawCsv(context: Context, rawText: String): Boolean {
         return try {
+            // 1. Rifiuta file con byte nulli o caratteri di controllo binari tipici di ZIP/PDF/immagini
+            if (rawText.contains('\u0000') || rawText.any { it.isISOControl() && it != '\n' && it != '\r' && it != '\t' }) {
+                return false
+            }
+
+            val lines = rawText.lines().map { it.trim() }.filter { it.isNotBlank() }
+            if (lines.isEmpty()) return false
+
+            // 2. Controllo Header rigido: la prima riga deve contenere i campi chiave della scheda
+            val firstLineLower = lines.first().lowercase()
+            if (!firstLineLower.contains("scheda") || !firstLineLower.contains("nome")) {
+                return false
+            }
+
+            // 3. Verifica la presenza di almeno una voce o header valido
             val parsed = parseCsv(rawText)
             val file = getFile(context)
             file.writeText(toCsv(parsed))

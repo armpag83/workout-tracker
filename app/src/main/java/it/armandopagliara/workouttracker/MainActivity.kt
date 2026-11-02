@@ -187,20 +187,35 @@ fun WorkoutApp() {
     ) { uri: Uri? ->
         uri?.let {
             try {
-                val inputStream = context.contentResolver.openInputStream(it)
-                val content = inputStream?.bufferedReader()?.use { reader -> reader.readText() }
-                if (!content.isNullOrEmpty()) {
-                    if (WorkoutCsvManager.saveRawCsv(context, content)) {
-                        exercises = WorkoutCsvManager.loadExercises(context)
-                        selectedTab = 0
-                        highlightedExerciseId = null
-                        Toast.makeText(context, "Configurazione importata!", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(context, "Formato CSV non valido", Toast.LENGTH_LONG).show()
+                // Recupera il nome originale del file per verificare l'estensione
+                var fileName: String? = null
+                val cursor = context.contentResolver.query(it, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                cursor?.use { c ->
+                    if (c.moveToFirst()) {
+                        val nameIndex = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (nameIndex != -1) fileName = c.getString(nameIndex)
                     }
                 }
+
+                // Blocco preventivo se il file selezionato ha estensione diversa da .csv o .txt (es. .zip)
+                if (fileName != null && !fileName!!.lowercase().endsWith(".csv") && !fileName!!.lowercase().endsWith(".txt")) {
+                    Toast.makeText(context, "Formato non valido", Toast.LENGTH_SHORT).show()
+                    return@rememberLauncherForActivityResult
+                }
+
+                val inputStream = context.contentResolver.openInputStream(it)
+                val content = inputStream?.bufferedReader()?.use { reader -> reader.readText() }
+
+                if (!content.isNullOrEmpty() && WorkoutCsvManager.saveRawCsv(context, content)) {
+                    exercises = WorkoutCsvManager.loadExercises(context)
+                    selectedTab = 0
+                    highlightedExerciseId = null
+                    Toast.makeText(context, "Configurazione importata!", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Formato non valido", Toast.LENGTH_SHORT).show()
+                }
             } catch (e: Exception) {
-                Toast.makeText(context, "Errore durante l'importazione", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Formato non valido", Toast.LENGTH_SHORT).show()
             }
         }
     }
