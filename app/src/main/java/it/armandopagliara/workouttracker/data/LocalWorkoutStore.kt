@@ -10,11 +10,11 @@ object LocalWorkoutStore {
     private fun getPrefs(context: Context) =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    /** Assicura che il preset predefinito "Full Body" sia sempre creato nell'archivio locale */
+    /** Assicura che "Full Body" sia sempre presente tra le opzioni dell'Archivio Locale */
     fun ensureDefaultPreset(context: Context) {
         val prefs = getPrefs(context)
         if (!prefs.contains(DEFAULT_PRESET_NAME)) {
-            savePreset(context, DEFAULT_PRESET_NAME, WorkoutCsvManager.DEFAULT_CSV)
+            savePreset(context, DEFAULT_PRESET_NAME, WorkoutCsvManager.FULL_BODY_CSV)
         }
     }
 

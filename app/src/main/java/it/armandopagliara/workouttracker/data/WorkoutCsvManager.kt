@@ -9,7 +9,8 @@ object WorkoutCsvManager {
     private const val FILE_NAME = "workout_config.csv"
     private const val CSV_HEADER = "scheda,nome,muscoli,target,recupero,kg,note"
 
-    val DEFAULT_CSV = """
+    // Preset "Full Body" sempre disponibile per l'archivio locale o per il caricamento su richiesta
+    val FULL_BODY_CSV = """
         scheda,nome,muscoli,target,recupero,kg,note
         Full Body,Riscaldamento tapisroulant,Cardio,10 min,0,,"pendenza 3 velocità 5.5"
         Full Body,Leg Press (o Squat al multipower),Gambe / Glutei,3x10,90,,"Discesa lenta (3 secondi), ginocchia in linea con le punte dei piedi."
@@ -26,7 +27,7 @@ object WorkoutCsvManager {
     fun loadExercises(context: Context): List<Exercise> {
         val file = getFile(context)
         if (!file.exists()) {
-            file.writeText(DEFAULT_CSV)
+            file.writeText(CSV_HEADER)
         }
         return parseCsv(file.readText())
     }
@@ -45,7 +46,7 @@ object WorkoutCsvManager {
     fun getRawCsv(context: Context): String {
         val file = getFile(context)
         if (!file.exists()) {
-            file.writeText(DEFAULT_CSV)
+            file.writeText(CSV_HEADER)
         }
         return file.readText()
     }
@@ -53,11 +54,9 @@ object WorkoutCsvManager {
     fun saveRawCsv(context: Context, rawText: String): Boolean {
         return try {
             val parsed = parseCsv(rawText)
-            if (parsed.isNotEmpty()) {
-                val file = getFile(context)
-                file.writeText(toCsv(parsed))
-                true
-            } else false
+            val file = getFile(context)
+            file.writeText(toCsv(parsed))
+            true
         } catch (e: Exception) {
             e.printStackTrace()
             false
@@ -66,8 +65,8 @@ object WorkoutCsvManager {
 
     fun resetToDefault(context: Context): List<Exercise> {
         val file = getFile(context)
-        file.writeText(DEFAULT_CSV)
-        return parseCsv(DEFAULT_CSV)
+        file.writeText(CSV_HEADER)
+        return parseCsv(CSV_HEADER)
     }
 
     fun toCsv(exercises: List<Exercise>): String {
@@ -100,7 +99,7 @@ object WorkoutCsvManager {
             val line = lines[i]
             val tokens = parseCsvLine(line)
             if (tokens.size >= 5) {
-                val scheda = tokens.getOrElse(0) { "Full Body" }.ifBlank { "Full Body" }
+                val scheda = tokens.getOrElse(0) { "Scheda personale" }.ifBlank { "Scheda personale" }
                 val nome = tokens.getOrElse(1) { "" }
                 val muscoli = tokens.getOrElse(2) { "" }
                 val target = tokens.getOrElse(3) { "" }

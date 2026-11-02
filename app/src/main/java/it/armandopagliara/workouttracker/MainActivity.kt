@@ -1,4 +1,4 @@
-// DEV_1.0.2
+// DEV_1.0.3
 package it.armandopagliara.workouttracker
 
 import android.content.Context
@@ -58,7 +58,6 @@ class MainActivity : ComponentActivity() {
         
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        // Abilita la rotazione solo sui Tablet (smallestScreenWidthDp >= 600)
         val isTablet = resources.configuration.smallestScreenWidthDp >= 600
         requestedOrientation = if (isTablet) {
             ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
@@ -66,7 +65,6 @@ class MainActivity : ComponentActivity() {
             ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
 
-        // Barra di stato scura e visibile
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
 
         setContent {
@@ -76,7 +74,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Riporta l'app in primo piano alla scadenza del timer
     fun bringToForeground() {
         try {
             val intent = Intent(this, MainActivity::class.java).apply {
@@ -133,10 +130,14 @@ fun WorkoutApp() {
 
     val sharedPrefs = remember { context.getSharedPreferences("workout_tracker_prefs", Context.MODE_PRIVATE) }
     val lastSeenVersion = sharedPrefs.getString("last_seen_version", "")
-    var showWelcomeTutorial by remember { mutableStateOf(lastSeenVersion != currentAppVersion) }
+    val isFreshInstall = lastSeenVersion.isNullOrEmpty()
 
+    var showWelcomeTutorial by remember { mutableStateOf(lastSeenVersion != currentAppVersion) }
+    var showLoadFullBodyPrompt by remember { mutableStateOf(false) }
+
+    // Fallback su "Scheda personale" se non ci sono esercizi caricati
     val schede = remember(exercises) {
-        exercises.map { it.scheda }.distinct().ifEmpty { listOf("Scheda A: Spinta") }
+        exercises.map { it.scheda }.distinct().ifEmpty { listOf("Scheda personale") }
     }
 
     val selectedExercise = exercises.find { it.id == highlightedExerciseId }
@@ -431,7 +432,7 @@ fun WorkoutApp() {
                     )
                 }
 
-                if (currentSchedaName.isNotEmpty()) {
+                if (currentSchedaName.isNotEmpty() && currentList.isNotEmpty()) {
                     item {
                         Spacer(modifier = Modifier.height((12 * scale).dp))
                         Button(
@@ -465,6 +466,67 @@ fun WorkoutApp() {
                 }
             )
         }
+    }
+
+    // --- POPUP CARICAMENTO FULL BODY PRIMA INSTALLAZIONE ---
+    if (showLoadFullBodyPrompt) {
+        AlertDialog(
+            onDismissRequest = { showLoadFullBodyPrompt = false },
+            title = {
+                Text(
+                    text = "Caricare la scheda d'esempio?",
+                    fontSize = (18 * scale).sp,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "Vuoi caricare la scheda d'esempio Full body?",
+                    fontSize = (14 * scale).sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (WorkoutCsvManager.saveRawCsv(context, WorkoutCsvManager.FULL_BODY_CSV)) {
+                            exercises = WorkoutCsvManager.loadExercises(context)
+                            selectedTab = 0
+                            highlightedExerciseId = null
+                            Toast.makeText(context, "Scheda Full body caricata!", Toast.LENGTH_SHORT).show()
+                        }
+                        showLoadFullBodyPrompt = false
+                    }
+                ) {
+                    Text("Sì", fontSize = (14 * scale).sp)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showLoadFullBodyPrompt = false }
+                ) {
+                    Text("No, lascia vuoto", fontSize = (14 * scale).sp)
+                }
+            }
+        )
+    }
+
+    if (showWelcomeTutorial) {
+        WelcomeTutorialDialog(
+            versionName = currentAppVersion,
+            initialDontShowAgain = lastSeenVersion == currentAppVersion,
+            onDismiss = { dontShowAgain ->
+                if (dontShowAgain) {
+                    sharedPrefs.edit().putString("last_seen_version", currentAppVersion).apply()
+                } else {
+                    sharedPrefs.edit().remove("last_seen_version").apply()
+                }
+                showWelcomeTutorial = false
+                // Se è la prima installazione, attiva la richiesta per caricare la scheda Full Body
+                if (isFreshInstall) {
+                    showLoadFullBodyPrompt = true
+                }
+            }
+        )
     }
 
     if (showNewSchedaDialog) {
@@ -704,21 +766,6 @@ fun WorkoutApp() {
         )
     }
 
-    if (showWelcomeTutorial) {
-        WelcomeTutorialDialog(
-            versionName = currentAppVersion,
-            initialDontShowAgain = lastSeenVersion == currentAppVersion,
-            onDismiss = { dontShowAgain ->
-                if (dontShowAgain) {
-                    sharedPrefs.edit().putString("last_seen_version", currentAppVersion).apply()
-                } else {
-                    sharedPrefs.edit().remove("last_seen_version").apply()
-                }
-                showWelcomeTutorial = false
-            }
-        )
-    }
-
     if (showCsvAccessConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showCsvAccessConfirmDialog = false },
@@ -799,7 +846,7 @@ fun WorkoutApp() {
     }
 
     if (showAddExerciseDialog) {
-        val currentScheda = schede.getOrElse(selectedTab.coerceAtMost((schede.size - 1).coerceAtLeast(0))) { "Scheda A" }
+        val currentScheda = schede.getOrElse(selectedTab.coerceAtMost((schede.size - 1).coerceAtLeast(0))) { "Scheda personale" }
         val newEx = Exercise(
             id = "${currentScheda}_${System.currentTimeMillis()}",
             scheda = currentScheda,
