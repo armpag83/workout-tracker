@@ -1,3 +1,4 @@
+// DEV_1.0.3
 package it.armandopagliara.workouttracker.data
 
 import android.content.Context
@@ -10,10 +11,14 @@ object WorkoutCsvManager {
 
     private val DEFAULT_CSV = """
         scheda,nome,muscoli,target,recupero,kg,note
-        Scheda A: Spinta,Panca Piana,Pettorali,4x8,90,70,Bilanciere olimpico
-        Scheda A: Spinta,Dip,Pettorali / Tricipiti,3x10,60,,Zavorra 10kg
-        Scheda B: Trazione,Trazioni,Dorsali,4x6,120,,Presa prona
-        Scheda B: Trazione,Rematore,Dorsali,3x8,90,60,Bilanciere
+        Full Body,Riscaldamento tapisroulant,Cardio,10 min,0,,"pendenza 3 velocità 5.5"
+        Full Body,Leg Press (o Squat al multipower),Gambe / Glutei,3x10,90,,"Discesa lenta (3 secondi), ginocchia in linea con le punte dei piedi."
+        Full Body,Lat Machine (Presa prona o inversa),Dorso / Bicipiti,3x10,90,,"Petto in fuori, spalle basse, porta la barra al petto senza strattonare."
+        Full Body,Chest Press (o Panca piana con manubri),Petto / Tricipiti,3x10,90,,"Spingi proiettando il petto in fuori e tieni le scapole ben incollate allo schienale."
+        Full Body,Shoulder Press Machine,Spalle,2x12,60,,"Mantieni i gomiti leggermente convergenti in avanti, non del tutto aperti."
+        Full Body,Pulley Basso (o Rematore al macchinario),Dorso / Spalle post.,2x12,60,,"Tira verso l'ombelico spremendo le scapole alla fine del movimento."
+        Full Body,Crunch Addominale (a terra o su tappetino),Core / Addome,3x15,60,,"Fuori l'aria mentre sali, schiena bassa sempre a contatto con il pavimento."
+        Full Body,Plank Statico,Core / Stabilità,3x30-45s,60,,"Mantieni il corpo in linea retta senza far cedere il bacino verso il basso."
     """.trimIndent()
 
     fun getFile(context: Context): File = File(context.filesDir, FILE_NAME)
@@ -95,7 +100,7 @@ object WorkoutCsvManager {
             val line = lines[i]
             val tokens = parseCsvLine(line)
             if (tokens.size >= 5) {
-                val scheda = tokens.getOrElse(0) { "Scheda 1" }.ifBlank { "Scheda 1" }
+                val scheda = tokens.getOrElse(0) { "Full Body" }.ifBlank { "Full Body" }
                 val nome = tokens.getOrElse(1) { "" }
                 val muscoli = tokens.getOrElse(2) { "" }
                 val target = tokens.getOrElse(3) { "" }

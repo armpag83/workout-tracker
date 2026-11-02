@@ -1,3 +1,4 @@
+// DEV_1.0.3
 package it.armandopagliara.workouttracker.ui.dialogs
 
 import androidx.compose.foundation.layout.*
@@ -76,13 +77,13 @@ fun WelcomeTutorialDialog(
                 TutorialSection(
                     icon = "⏱️",
                     title = "Timer Reattivo & Suoni",
-                    description = "Il timer si aggiorna istantaneamente quando selezioni un esercizio con un tempo di recupero impostato. Allarme visivo e sonoro a fine tempo."
+                    description = "Il timer si aggiorna istantaneamente quando selezioni un esercizio con un tempo di recupero o durata impostato. Allarme visivo e sonoro a fine tempo."
                 )
 
                 TutorialSection(
                     icon = "⚙️",
-                    title = "Gestione CSV & Backup",
-                    description = "Accedi all'icona dell'ingranaggio in alto per salvare/caricare preset locali, modificare direttamente il testo CSV o esportare/importare file."
+                    title = "Gestione",
+                    description = "Accedi all'icona dell'ingranaggio in alto per caricare programmi di allenamento pre-impostati, salvare/caricare preset nell'archivio locale, modificare il testo CSV o esportare/importare file."
                 )
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
