@@ -9,7 +9,7 @@ object WorkoutCsvManager {
     private const val FILE_NAME = "workout_config.csv"
     private const val CSV_HEADER = "scheda,nome,muscoli,target,recupero,kg,note"
 
-    private val DEFAULT_CSV = """
+    val DEFAULT_CSV = """
         scheda,nome,muscoli,target,recupero,kg,note
         Full Body,Riscaldamento tapisroulant,Cardio,10 min,0,,"pendenza 3 velocità 5.5"
         Full Body,Leg Press (o Squat al multipower),Gambe / Glutei,3x10,90,,"Discesa lenta (3 secondi), ginocchia in linea con le punte dei piedi."
