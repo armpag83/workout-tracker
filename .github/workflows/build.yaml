@@ -40,7 +40,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: WorkoutTracker-DEV_1.0.3-APK
-          path: app/build/outputs/apk/release/WorkoutTracker-DEV_1.0.3.apk
+          path: app/build/outputs/apk/release/*.apk
 
       - name: Upload Mapping File Artifact
         uses: actions/upload-artifact@v4
