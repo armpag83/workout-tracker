@@ -1,9 +1,9 @@
-// 1.1.8
+// 1.1.0
 package it.armandopagliara.workouttracker.ui.components
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -14,25 +14,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import it.armandopagliara.workouttracker.model.Exercise
 
-/** Formattatore per trasformare i secondi in formato mm' ss" */
-fun formatRecupero(recuperoStr: String): String {
-    val totalSec = recuperoStr.toIntOrNull() ?: return ""
-    if (totalSec <= 0) return ""
-    val m = totalSec / 60
-    val s = totalSec % 60
-    return when {
-        m > 0 && s > 0 -> "${m}' ${s}\""
-        m > 0 -> "${m}'"
-        else -> "${s}\""
-    }
-}
-
-/** Card Esercizio con frecce su/giù visibili solo quando l'esercizio è selezionato */
 @Composable
 fun ExerciseCard(
     exercise: Exercise,
@@ -46,57 +34,54 @@ fun ExerciseCard(
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
-    val detailsList = mutableListOf<String>()
-    if (exercise.muscoli.isNotBlank()) detailsList.add(exercise.muscoli)
-    if (exercise.target.isNotBlank()) detailsList.add("Target: ${exercise.target}")
-    val formattedRec = formatRecupero(exercise.recupero)
-    if (formattedRec.isNotBlank()) detailsList.add("Recupero: $formattedRec")
-
-    val detailsText = detailsList.joinToString(" | ")
+    // Rilevamento Tablet per aumento dimensioni (+20%)
+    val isTablet = LocalConfiguration.current.smallestScreenWidthDp >= 600
+    val scale = if (isTablet) 1.20f else 1.0f
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
+            .padding(vertical = (4 * scale).dp)
+            .clip(RoundedCornerShape((16 * scale).dp))
             .clickable { onCardClick() },
         colors = CardDefaults.cardColors(
-            containerColor = if (isHighlighted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-        ),
-        border = if (isHighlighted) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isHighlighted) 6.dp else 2.dp)
+            containerColor = if (isHighlighted)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+            else
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+        )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding((12 * scale).dp),
+            verticalAlignment = Alignment.Top
         ) {
-            // Frecce Su e Giù visibili SOLO quando la card è selezionata
+            // Frecce spostamento verticale esercizio
             if (isHighlighted) {
                 Column(
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(end = 6.dp)
+                    modifier = Modifier.padding(end = (8 * scale).dp),
+                    verticalArrangement = Arrangement.spacedBy((4 * scale).dp)
                 ) {
                     IconButton(
                         onClick = onMoveUp,
                         enabled = canMoveUp,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size((24 * scale).dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.KeyboardArrowUp,
-                            contentDescription = "Sposta in alto",
+                            Icons.Default.KeyboardArrowUp,
+                            contentDescription = "Sposta Su",
                             tint = if (canMoveUp) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                         )
                     }
                     IconButton(
                         onClick = onMoveDown,
                         enabled = canMoveDown,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size((24 * scale).dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.KeyboardArrowDown,
-                            contentDescription = "Sposta in basso",
+                            Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Sposta Giù",
                             tint = if (canMoveDown) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                         )
                     }
@@ -104,64 +89,96 @@ fun ExerciseCard(
             }
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = exercise.nome,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = if (isHighlighted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                )
-                if (detailsText.isNotBlank()) {
+                // Nome esercizio + Icone in alto a destra
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
                     Text(
-                        text = detailsText,
-                        fontSize = 12.sp,
-                        color = if (isHighlighted) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.secondary
+                        text = exercise.nome,
+                        fontSize = (16 * scale).sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = (8 * scale).dp)
+                    )
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy((2 * scale).dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = onCopyClick, modifier = Modifier.size((28 * scale).dp)) {
+                            Icon(
+                                Icons.Default.ContentCopy,
+                                contentDescription = "Duplica",
+                                modifier = Modifier.size((18 * scale).dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        IconButton(onClick = onEditClick, modifier = Modifier.size((28 * scale).dp)) {
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "Modifica",
+                                modifier = Modifier.size((18 * scale).dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        IconButton(onClick = onDeleteClick, modifier = Modifier.size((28 * scale).dp)) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Elimina",
+                                modifier = Modifier.size((18 * scale).dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+
+                // Dettagli Esercizio: "Muscoli coinvolti" & "Recupero/durata"
+                val dettagli = buildString {
+                    if (exercise.muscoli.isNotBlank()) append("Muscoli coinvolti: ${exercise.muscoli} | ")
+                    if (exercise.target.isNotBlank()) append("Target: ${exercise.target}")
+                    if (exercise.recupero.isNotBlank() && exercise.recupero != "0") {
+                        val sec = exercise.recupero.toIntOrNull() ?: 0
+                        val recStr = if (sec >= 60 && sec % 60 == 0) "${sec / 60}'" else "${sec}s"
+                        append(" | Recupero/durata: $recStr")
+                    }
+                }
+                if (dettagli.isNotBlank()) {
+                    Text(
+                        text = dettagli,
+                        fontSize = (13 * scale).sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = (4 * scale).dp)
                     )
                 }
 
+                // Kg e Note estese sotto le icone
                 if (exercise.kg.isNotBlank() || exercise.note.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = (8 * scale).dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         if (exercise.kg.isNotBlank()) {
                             Text(
                                 text = "Kg: ${exercise.kg}",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary
+                                fontSize = (13 * scale).sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(end = (12 * scale).dp)
                             )
                         }
                         if (exercise.note.isNotBlank()) {
                             Text(
                                 text = "Note: ${exercise.note}",
-                                fontSize = 12.sp,
+                                fontSize = (13 * scale).sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
-                }
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy((-4).dp)) {
-                IconButton(onClick = onCopyClick) {
-                    Icon(
-                        Icons.Default.ContentCopy,
-                        contentDescription = "Copia Esercizio",
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                IconButton(onClick = onEditClick) {
-                    Icon(
-                        Icons.Default.Edit,
-                        contentDescription = "Modifica Esercizio",
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                IconButton(onClick = onDeleteClick) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Elimina Esercizio",
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(20.dp)
-                    )
                 }
             }
         }

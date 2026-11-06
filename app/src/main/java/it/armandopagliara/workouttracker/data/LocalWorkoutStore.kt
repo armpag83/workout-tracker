@@ -1,32 +1,34 @@
+// 1.1.0
 package it.armandopagliara.workouttracker.data
 
 import android.content.Context
-import java.io.File
 
-/** Gestore dell'archivio locale dei preset delle schede all'interno dell'app */
 object LocalWorkoutStore {
-    private const val FOLDER_NAME = "saved_presets"
+    private const val PREFS_NAME = "workout_presets_archive"
+    private const val DEFAULT_PRESET_NAME = "Full Body"
 
-    private fun getFolder(context: Context): File {
-        val folder = File(context.filesDir, FOLDER_NAME)
-        if (!folder.exists()) folder.mkdirs()
-        return folder
+    private fun getPrefs(context: Context) =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    /** Assicura che "Full Body" sia sempre presente tra le opzioni dell'Archivio Locale */
+    fun ensureDefaultPreset(context: Context) {
+        val prefs = getPrefs(context)
+        if (!prefs.contains(DEFAULT_PRESET_NAME)) {
+            savePreset(context, DEFAULT_PRESET_NAME, WorkoutCsvManager.FULL_BODY_CSV)
+        }
     }
 
     fun listSavedPresets(context: Context): List<String> {
-        val folder = getFolder(context)
-        return folder.listFiles { _, name -> name.endsWith(".csv") }
-            ?.map { it.nameWithoutExtension }
-            ?.sorted()
-            ?: emptyList()
+        ensureDefaultPreset(context)
+        val prefs = getPrefs(context)
+        return prefs.all.keys.sorted()
     }
 
     fun savePreset(context: Context, name: String, csvContent: String): Boolean {
+        if (name.isBlank()) return false
         return try {
-            val safeName = name.trim().replace(Regex("[^a-zA-Z0-9_\\-\\s]"), "_")
-            if (safeName.isBlank()) return false
-            val file = File(getFolder(context), "$safeName.csv")
-            file.writeText(csvContent)
+            val prefs = getPrefs(context)
+            prefs.edit().putString(name.trim(), csvContent).apply()
             true
         } catch (e: Exception) {
             e.printStackTrace()
@@ -34,13 +36,20 @@ object LocalWorkoutStore {
         }
     }
 
-    fun loadPreset(context: Context, presetName: String): String? {
-        val file = File(getFolder(context), "$presetName.csv")
-        return if (file.exists()) file.readText() else null
+    fun loadPreset(context: Context, name: String): String? {
+        ensureDefaultPreset(context)
+        val prefs = getPrefs(context)
+        return prefs.getString(name, null)
     }
 
-    fun deletePreset(context: Context, presetName: String): Boolean {
-        val file = File(getFolder(context), "$presetName.csv")
-        return if (file.exists()) file.delete() else false
+    fun deletePreset(context: Context, name: String): Boolean {
+        return try {
+            val prefs = getPrefs(context)
+            prefs.edit().remove(name).apply()
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
     }
 }

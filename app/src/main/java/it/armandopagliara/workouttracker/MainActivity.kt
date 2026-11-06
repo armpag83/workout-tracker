@@ -1,7 +1,9 @@
-// 1.0.1
+// 1.1.0
 package it.armandopagliara.workouttracker
 
 import android.content.Context
+import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.os.Bundle
 import android.view.WindowManager
@@ -33,11 +35,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.delay
 
 import it.armandopagliara.workouttracker.data.LocalWorkoutStore
@@ -54,10 +58,30 @@ class MainActivity : ComponentActivity() {
         
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
+        val isTablet = resources.configuration.smallestScreenWidthDp >= 600
+        requestedOrientation = if (isTablet) {
+            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
+
         setContent {
             MaterialTheme {
                 WorkoutApp()
             }
+        }
+    }
+
+    fun bringToForeground() {
+        try {
+            val intent = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }
@@ -66,7 +90,11 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WorkoutApp() {
     val context = LocalContext.current
+    val activity = context as? MainActivity
     val currentAppVersion = BuildConfig.VERSION_NAME
+
+    val isTablet = LocalConfiguration.current.smallestScreenWidthDp >= 600
+    val scale = if (isTablet) 1.20f else 1.0f
 
     var exercises by remember { mutableStateOf(WorkoutCsvManager.loadExercises(context)) }
     var selectedTab by rememberSaveable { mutableStateOf(0) }
@@ -91,7 +119,6 @@ fun WorkoutApp() {
     var showDeleteSchedaDialog by remember { mutableStateOf(false) }
     var showCsvAccessConfirmDialog by remember { mutableStateOf(false) }
 
-    // Label temporanea per la pressione prolungata del pulsante '+'
     var showAddExerciseTooltip by remember { mutableStateOf(false) }
 
     LaunchedEffect(showAddExerciseTooltip) {
@@ -103,10 +130,14 @@ fun WorkoutApp() {
 
     val sharedPrefs = remember { context.getSharedPreferences("workout_tracker_prefs", Context.MODE_PRIVATE) }
     val lastSeenVersion = sharedPrefs.getString("last_seen_version", "")
-    var showWelcomeTutorial by remember { mutableStateOf(lastSeenVersion != currentAppVersion) }
+    val isFreshInstall = lastSeenVersion.isNullOrEmpty()
 
+    var showWelcomeTutorial by remember { mutableStateOf(lastSeenVersion != currentAppVersion) }
+    var showLoadFullBodyPrompt by remember { mutableStateOf(false) }
+
+    // Fallback su "Scheda personale" se non ci sono esercizi caricati
     val schede = remember(exercises) {
-        exercises.map { it.scheda }.distinct().ifEmpty { listOf("Scheda A: Spinta") }
+        exercises.map { it.scheda }.distinct().ifEmpty { listOf("Scheda personale") }
     }
 
     val selectedExercise = exercises.find { it.id == highlightedExerciseId }
@@ -156,20 +187,35 @@ fun WorkoutApp() {
     ) { uri: Uri? ->
         uri?.let {
             try {
-                val inputStream = context.contentResolver.openInputStream(it)
-                val content = inputStream?.bufferedReader()?.use { reader -> reader.readText() }
-                if (!content.isNullOrEmpty()) {
-                    if (WorkoutCsvManager.saveRawCsv(context, content)) {
-                        exercises = WorkoutCsvManager.loadExercises(context)
-                        selectedTab = 0
-                        highlightedExerciseId = null
-                        Toast.makeText(context, "Configurazione importata!", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(context, "Formato CSV non valido", Toast.LENGTH_LONG).show()
+                // Recupera il nome originale del file per verificare l'estensione
+                var fileName: String? = null
+                val cursor = context.contentResolver.query(it, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                cursor?.use { c ->
+                    if (c.moveToFirst()) {
+                        val nameIndex = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (nameIndex != -1) fileName = c.getString(nameIndex)
                     }
                 }
+
+                // Blocco preventivo se il file selezionato ha estensione diversa da .csv o .txt (es. .zip)
+                if (fileName != null && !fileName!!.lowercase().endsWith(".csv") && !fileName!!.lowercase().endsWith(".txt")) {
+                    Toast.makeText(context, "Formato non valido", Toast.LENGTH_SHORT).show()
+                    return@rememberLauncherForActivityResult
+                }
+
+                val inputStream = context.contentResolver.openInputStream(it)
+                val content = inputStream?.bufferedReader()?.use { reader -> reader.readText() }
+
+                if (!content.isNullOrEmpty() && WorkoutCsvManager.saveRawCsv(context, content)) {
+                    exercises = WorkoutCsvManager.loadExercises(context)
+                    selectedTab = 0
+                    highlightedExerciseId = null
+                    Toast.makeText(context, "Configurazione importata!", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Formato non valido", Toast.LENGTH_SHORT).show()
+                }
             } catch (e: Exception) {
-                Toast.makeText(context, "Errore durante l'importazione", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Formato non valido", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -197,54 +243,54 @@ fun WorkoutApp() {
                         Image(
                             painter = painterResource(id = R.drawable.ic_launcher),
                             contentDescription = "Logo App",
-                            modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
+                            modifier = Modifier.size((40 * scale).dp).clip(RoundedCornerShape((10 * scale).dp))
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width((8 * scale).dp))
                         Column {
-                            Text(text = "Workout", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, lineHeight = 15.sp)
-                            Text(text = "Tracker", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, lineHeight = 15.sp)
+                            Text(text = "Workout", fontSize = (14 * scale).sp, fontWeight = FontWeight.ExtraBold, lineHeight = (15 * scale).sp)
+                            Text(text = "Tracker", fontSize = (14 * scale).sp, fontWeight = FontWeight.ExtraBold, lineHeight = (15 * scale).sp)
                         }
                     }
                 },
                 actions = {
                     IconButton(onClick = { showWelcomeTutorial = true }) {
-                        Icon(Icons.Default.Info, contentDescription = "Guida App")
+                        Icon(Icons.Default.Info, contentDescription = "Guida App", modifier = Modifier.size((24 * scale).dp))
                     }
 
                     TextButton(onClick = { showNewSchedaDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Nuova scheda", fontSize = 13.sp)
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size((18 * scale).dp))
+                        Spacer(modifier = Modifier.width((4 * scale).dp))
+                        Text("Nuova scheda", fontSize = (13 * scale).sp)
                     }
 
                     IconButton(onClick = { showCsvAccessConfirmDialog = true }) {
-                        Text("⚙️", fontSize = 18.sp)
+                        Text("⚙️", fontSize = (18 * scale).sp)
                     }
 
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                         DropdownMenuItem(
-                            text = { Text("💾 Salva in Archivio Locale") },
+                            text = { Text("💾 Salva in Archivio Locale", fontSize = (14 * scale).sp) },
                             onClick = { showMenu = false; showSavePresetDialog = true }
                         )
                         DropdownMenuItem(
-                            text = { Text("📁 Carica da Archivio Locale") },
+                            text = { Text("📁 Carica da Archivio Locale", fontSize = (14 * scale).sp) },
                             onClick = { showMenu = false; showLoadPresetDialog = true }
                         )
                         HorizontalDivider()
                         DropdownMenuItem(
-                            text = { Text("✏️ Modifica CSV (Testo)") },
+                            text = { Text("✏️ Modifica CSV (Testo)", fontSize = (14 * scale).sp) },
                             onClick = { showMenu = false; showCsvEditorDialog = true }
                         )
                         DropdownMenuItem(
-                            text = { Text("📂 Importa CSV da File") },
+                            text = { Text("📂 Importa CSV da File", fontSize = (14 * scale).sp) },
                             onClick = { showMenu = false; importLauncher.launch("*/*") }
                         )
                         DropdownMenuItem(
-                            text = { Text("💾 Esporta CSV su File") },
+                            text = { Text("💾 Esporta CSV su File", fontSize = (14 * scale).sp) },
                             onClick = { showMenu = false; exportLauncher.launch("workout_config.csv") }
                         )
                         DropdownMenuItem(
-                            text = { Text("🔄 Ripristina Predefinito") },
+                            text = { Text("🔄 Ripristina Predefinito", fontSize = (14 * scale).sp) },
                             onClick = {
                                 showMenu = false
                                 exercises = WorkoutCsvManager.resetToDefault(context)
@@ -260,7 +306,6 @@ fun WorkoutApp() {
         }
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            // STRIP TAB CON PULSANTE '+' FISSO SULLA SINISTRA E LABEL DEDICATA SU LONG-PRESS
             Surface(
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 2.dp,
@@ -270,12 +315,11 @@ fun WorkoutApp() {
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Contenitore per il pulsante '+' con evento di pressione prolungata
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
-                            .padding(start = 4.dp, end = 2.dp)
-                            .clip(RoundedCornerShape(20.dp))
+                            .padding(start = (4 * scale).dp, end = (2 * scale).dp)
+                            .clip(RoundedCornerShape((20 * scale).dp))
                             .background(
                                 if (showAddExerciseTooltip) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
                                 else Color.Transparent
@@ -284,25 +328,25 @@ fun WorkoutApp() {
                                 onClick = { showAddExerciseDialog = true },
                                 onLongClick = { showAddExerciseTooltip = true }
                             )
-                            .padding(horizontal = 8.dp, vertical = 8.dp)
+                            .padding(horizontal = (8 * scale).dp, vertical = (8 * scale).dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = "Aggiungi Esercizio",
-                            tint = MaterialTheme.colorScheme.primary
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size((24 * scale).dp)
                         )
                         AnimatedVisibility(visible = showAddExerciseTooltip) {
                             Text(
                                 text = "Aggiungi esercizio",
-                                fontSize = 12.sp,
+                                fontSize = (12 * scale).sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(start = 4.dp, end = 4.dp)
+                                modifier = Modifier.padding(start = (4 * scale).dp, end = (4 * scale).dp)
                             )
                         }
                     }
 
-                    // Sezione scorrevole delle Schede
                     ScrollableTabRow(
                         selectedTabIndex = selectedTab.coerceAtMost((schede.size - 1).coerceAtLeast(0)),
                         edgePadding = 0.dp,
@@ -316,34 +360,34 @@ fun WorkoutApp() {
                                 text = {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                        horizontalArrangement = Arrangement.spacedBy((2 * scale).dp)
                                     ) {
                                         if (isSelected) {
                                             IconButton(
                                                 onClick = { moveScheda(index, index - 1) },
                                                 enabled = index > 0,
-                                                modifier = Modifier.size(22.dp)
+                                                modifier = Modifier.size((22 * scale).dp)
                                             ) {
                                                 Icon(
                                                     Icons.Default.KeyboardArrowLeft,
                                                     contentDescription = "Sposta scheda a sinistra",
-                                                    modifier = Modifier.size(16.dp),
+                                                    modifier = Modifier.size((16 * scale).dp),
                                                     tint = if (index > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                                                 )
                                             }
                                         }
 
-                                        Text(schedaName, fontSize = 13.sp)
+                                        Text(schedaName, fontSize = (13 * scale).sp)
 
                                         if (isSelected) {
                                             IconButton(
                                                 onClick = { showRenameSchedaDialog = true },
-                                                modifier = Modifier.size(22.dp)
+                                                modifier = Modifier.size((22 * scale).dp)
                                             ) {
                                                 Icon(
                                                     Icons.Default.Edit,
                                                     contentDescription = "Rinomina Scheda",
-                                                    modifier = Modifier.size(14.dp),
+                                                    modifier = Modifier.size((14 * scale).dp),
                                                     tint = MaterialTheme.colorScheme.primary
                                                 )
                                             }
@@ -351,12 +395,12 @@ fun WorkoutApp() {
                                             IconButton(
                                                 onClick = { moveScheda(index, index + 1) },
                                                 enabled = index < schede.size - 1,
-                                                modifier = Modifier.size(22.dp)
+                                                modifier = Modifier.size((22 * scale).dp)
                                             ) {
                                                 Icon(
                                                     Icons.Default.KeyboardArrowRight,
                                                     contentDescription = "Sposta scheda a destra",
-                                                    modifier = Modifier.size(16.dp),
+                                                    modifier = Modifier.size((16 * scale).dp),
                                                     tint = if (index < schede.size - 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                                                 )
                                             }
@@ -376,7 +420,7 @@ fun WorkoutApp() {
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .padding(horizontal = (12 * scale).dp, vertical = (6 * scale).dp)
             ) {
                 itemsIndexed(currentList, key = { _, exercise -> exercise.id }) { index, exercise ->
                     val isHighlighted = exercise.id == highlightedExerciseId
@@ -403,25 +447,25 @@ fun WorkoutApp() {
                     )
                 }
 
-                if (currentSchedaName.isNotEmpty()) {
+                if (currentSchedaName.isNotEmpty() && currentList.isNotEmpty()) {
                     item {
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height((12 * scale).dp))
                         Button(
                             onClick = { showDeleteSchedaDialog = true },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.errorContainer,
                                 contentColor = MaterialTheme.colorScheme.onErrorContainer
                             ),
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                            modifier = Modifier.fillMaxWidth().padding(vertical = (8 * scale).dp)
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Elimina intera scheda", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.error)
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                Text("Elimina intera scheda", fontWeight = FontWeight.Bold, fontSize = (15 * scale).sp, color = MaterialTheme.colorScheme.error)
+                                Spacer(modifier = Modifier.width((12 * scale).dp))
+                                Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size((20 * scale).dp))
                             }
                         }
                     }
@@ -431,167 +475,52 @@ fun WorkoutApp() {
             StopwatchPanel(
                 targetRecuperoSeconds = targetRecuperoSeconds,
                 selectedExerciseId = highlightedExerciseId,
-                onRunningStateChange = { running -> isTimerRunning = running }
+                onRunningStateChange = { running -> isTimerRunning = running },
+                onTimerFinished = {
+                    activity?.bringToForeground()
+                }
             )
         }
     }
 
-    // --- PANNELLO "INCOLLA IN: (LISTA SCHEDE)" ---
-    exerciseToCopy?.let { exToCopy ->
+    // --- POPUP CARICAMENTO FULL BODY PRIMA INSTALLAZIONE ---
+    if (showLoadFullBodyPrompt) {
         AlertDialog(
-            onDismissRequest = { exerciseToCopy = null },
-            title = { Text("Incolla \"${exToCopy.nome}\" in:", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    schede.forEach { targetScheda ->
-                        OutlinedButton(
-                            onClick = {
-                                val existsInTarget = exercises.any {
-                                    it.scheda == targetScheda && it.nome.trim().equals(exToCopy.nome.trim(), ignoreCase = true)
-                                }
-                                val finalName = if (existsInTarget) "${exToCopy.nome} copia" else exToCopy.nome
-
-                                val pasted = exToCopy.copy(
-                                    id = "${targetScheda}_${System.currentTimeMillis()}",
-                                    scheda = targetScheda,
-                                    nome = finalName
-                                )
-                                val newList = exercises + pasted
-                                exercises = newList
-                                WorkoutCsvManager.saveExercises(context, newList)
-                                Toast.makeText(context, "\"$finalName\" incollato in \"$targetScheda\"", Toast.LENGTH_SHORT).show()
-                                exerciseToCopy = null
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("📋 $targetScheda", fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
+            onDismissRequest = { showLoadFullBodyPrompt = false },
+            title = {
+                Text(
+                    text = "Caricare la scheda d'esempio?",
+                    fontSize = (18 * scale).sp,
+                    fontWeight = FontWeight.Bold
+                )
             },
-            confirmButton = {},
-            dismissButton = {
-                Button(
-                    onClick = { exerciseToCopy = null },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                ) {
-                    Text("Annulla")
-                }
-            }
-        )
-    }
-
-    // --- DIALOGO SALVA IN ARCHIVIO LOCALE ---
-    if (showSavePresetDialog) {
-        var presetName by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { showSavePresetDialog = false },
-            title = { Text("Salva nell'Archivio Locale") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Assegna un nome al preset locale per poterlo ricaricare in seguito (es. Massa_Inverno):", fontSize = 13.sp)
-                    OutlinedTextField(
-                        value = presetName,
-                        onValueChange = { presetName = it },
-                        label = { Text("Nome preset") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+                Text(
+                    text = "Vuoi caricare la scheda d'esempio Full body?",
+                    fontSize = (14 * scale).sp
+                )
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        val currentCsv = WorkoutCsvManager.toCsv(exercises)
-                        if (LocalWorkoutStore.savePreset(context, presetName, currentCsv)) {
-                            Toast.makeText(context, "Preset \"$presetName\" salvato in archivio!", Toast.LENGTH_SHORT).show()
-                            showSavePresetDialog = false
-                        } else {
-                            Toast.makeText(context, "Nome non valido o errore durante il salvataggio", Toast.LENGTH_SHORT).show()
+                        if (WorkoutCsvManager.saveRawCsv(context, WorkoutCsvManager.FULL_BODY_CSV)) {
+                            exercises = WorkoutCsvManager.loadExercises(context)
+                            selectedTab = 0
+                            highlightedExerciseId = null
+                            Toast.makeText(context, "Scheda Full body caricata!", Toast.LENGTH_SHORT).show()
                         }
+                        showLoadFullBodyPrompt = false
                     }
-                ) { Text("Salva") }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { showSavePresetDialog = false }) { Text("Annulla") }
-            }
-        )
-    }
-
-    // --- DIALOGO CARICA DA ARCHIVIO LOCALE ---
-    if (showLoadPresetDialog) {
-        val savedPresets = remember { LocalWorkoutStore.listSavedPresets(context) }
-        AlertDialog(
-            onDismissRequest = { showLoadPresetDialog = false },
-            title = { Text("Carica dall'Archivio Locale") },
-            text = {
-                if (savedPresets.isEmpty()) {
-                    Text("Nessun preset salvato in archivio.", fontSize = 13.sp)
-                } else {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp)
-                    ) {
-                        itemsIndexed(savedPresets) { _, name ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                TextButton(
-                                    onClick = {
-                                        val content = LocalWorkoutStore.loadPreset(context, name)
-                                        if (content != null && WorkoutCsvManager.saveRawCsv(context, content)) {
-                                            exercises = WorkoutCsvManager.loadExercises(context)
-                                            selectedTab = 0
-                                            highlightedExerciseId = null
-                                            Toast.makeText(context, "Preset \"$name\" caricato!", Toast.LENGTH_SHORT).show()
-                                            showLoadPresetDialog = false
-                                        }
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text("📂 $name", fontWeight = FontWeight.Bold)
-                                }
-                                IconButton(
-                                    onClick = {
-                                        LocalWorkoutStore.deletePreset(context, name)
-                                        showLoadPresetDialog = false
-                                        Toast.makeText(context, "Preset eliminato", Toast.LENGTH_SHORT).show()
-                                    }
-                                ) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Elimina preset", tint = MaterialTheme.colorScheme.error)
-                                }
-                            }
-                        }
-                    }
+                ) {
+                    Text("Sì", fontSize = (14 * scale).sp)
                 }
             },
-            confirmButton = {},
             dismissButton = {
-                OutlinedButton(onClick = { showLoadPresetDialog = false }) { Text("Chiudi") }
-            }
-        )
-    }
-
-    if (showConfirmExerciseChangeDialog) {
-        AlertDialog(
-            onDismissRequest = { showConfirmExerciseChangeDialog = false },
-            title = { Text("Attenzione", fontWeight = FontWeight.Bold) },
-            text = { Text("Recupero in corso! Cambiando esercizio il timer si fermerà.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        highlightedExerciseId = pendingExerciseIdSelection
-                        showConfirmExerciseChangeDialog = false
-                    }
-                ) { Text("Procedi") }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { showConfirmExerciseChangeDialog = false }) { Text("Annulla") }
+                OutlinedButton(
+                    onClick = { showLoadFullBodyPrompt = false }
+                ) {
+                    Text("No, lascia vuoto", fontSize = (14 * scale).sp)
+                }
             }
         )
     }
@@ -607,147 +536,10 @@ fun WorkoutApp() {
                     sharedPrefs.edit().remove("last_seen_version").apply()
                 }
                 showWelcomeTutorial = false
-            }
-        )
-    }
-
-    if (showRenameSchedaDialog) {
-        val currentSchedaName = schede.getOrElse(selectedTab.coerceAtMost((schede.size - 1).coerceAtLeast(0))) { "" }
-        var newSchedaName by remember { mutableStateOf(currentSchedaName) }
-
-        AlertDialog(
-            onDismissRequest = { showRenameSchedaDialog = false },
-            title = { Text("Rinomina Scheda") },
-            text = {
-                OutlinedTextField(
-                    value = newSchedaName,
-                    onValueChange = { newSchedaName = it },
-                    label = { Text("Nome scheda") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val trimmed = newSchedaName.trim()
-                        if (trimmed.isNotBlank() && trimmed != currentSchedaName) {
-                            val newList = exercises.map {
-                                if (it.scheda == currentSchedaName) it.copy(scheda = trimmed) else it
-                            }
-                            exercises = newList
-                            WorkoutCsvManager.saveExercises(context, newList)
-                            showRenameSchedaDialog = false
-                            Toast.makeText(context, "Scheda rinominata!", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                ) { Text("Salva") }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { showRenameSchedaDialog = false }) { Text("Annulla") }
-            }
-        )
-    }
-
-    if (showCsvAccessConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showCsvAccessConfirmDialog = false },
-            title = { Text("Impostazioni & Archivio") },
-            text = { Text("Vuoi accedere al menu di gestione dell'archivio locale e dei file CSV?") },
-            confirmButton = {
-                Button(onClick = { showCsvAccessConfirmDialog = false; showMenu = true }) { Text("Accedi") }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { showCsvAccessConfirmDialog = false }) { Text("Annulla") }
-            }
-        )
-    }
-
-    if (showDeleteSchedaDialog) {
-        val currentSchedaName = schede.getOrElse(selectedTab.coerceAtMost((schede.size - 1).coerceAtLeast(0))) { "" }
-        AlertDialog(
-            onDismissRequest = { showDeleteSchedaDialog = false },
-            title = { Text("Conferma eliminazione scheda") },
-            text = { Text("Sei sicuro di voler eliminare l'intera scheda \"$currentSchedaName\" e tutti gli esercizi contenuti?") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val newList = exercises.filter { it.scheda != currentSchedaName }
-                        exercises = newList
-                        WorkoutCsvManager.saveExercises(context, newList)
-                        selectedTab = 0
-                        highlightedExerciseId = null
-                        showDeleteSchedaDialog = false
-                        Toast.makeText(context, "Scheda eliminata", Toast.LENGTH_SHORT).show()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Elimina Scheda") }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { showDeleteSchedaDialog = false }) { Text("Annulla") }
-            }
-        )
-    }
-
-    exerciseToEdit?.let { ex ->
-        ExerciseFormDialog(
-            title = "Modifica Esercizio",
-            initialExercise = ex,
-            onDismiss = { exerciseToEdit = null },
-            onConfirm = { updated ->
-                val newList = exercises.map { if (it.id == updated.id) updated else it }
-                exercises = newList
-                WorkoutCsvManager.saveExercises(context, newList)
-                exerciseToEdit = null
-                Toast.makeText(context, "Esercizio aggiornato", Toast.LENGTH_SHORT).show()
-            }
-        )
-    }
-
-    exerciseToDelete?.let { ex ->
-        AlertDialog(
-            onDismissRequest = { exerciseToDelete = null },
-            title = { Text("Conferma eliminazione") },
-            text = { Text("Sei sicuro di voler eliminare l'esercizio \"${ex.nome}\"?") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val newList = exercises.filter { it.id != ex.id }
-                        if (highlightedExerciseId == ex.id) highlightedExerciseId = null
-                        exercises = newList
-                        WorkoutCsvManager.saveExercises(context, newList)
-                        exerciseToDelete = null
-                        Toast.makeText(context, "Esercizio eliminato", Toast.LENGTH_SHORT).show()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Elimina") }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { exerciseToDelete = null }) { Text("Annulla") }
-            }
-        )
-    }
-
-    if (showAddExerciseDialog) {
-        val currentScheda = schede.getOrElse(selectedTab.coerceAtMost((schede.size - 1).coerceAtLeast(0))) { "Scheda A" }
-        val newEx = Exercise(
-            id = "${currentScheda}_${System.currentTimeMillis()}",
-            scheda = currentScheda,
-            nome = "",
-            muscoli = "",
-            target = "",
-            recupero = "90"
-        )
-        ExerciseFormDialog(
-            title = "Nuovo Esercizio ($currentScheda)",
-            initialExercise = newEx,
-            onDismiss = { showAddExerciseDialog = false },
-            onConfirm = { created ->
-                val newList = exercises + created
-                exercises = newList
-                WorkoutCsvManager.saveExercises(context, newList)
-                showAddExerciseDialog = false
-                Toast.makeText(context, "Esercizio aggiunto", Toast.LENGTH_SHORT).show()
+                // Se è la prima installazione, attiva la richiesta per caricare la scheda Full Body
+                if (isFreshInstall) {
+                    showLoadFullBodyPrompt = true
+                }
             }
         )
     }
@@ -756,12 +548,12 @@ fun WorkoutApp() {
         var newSchedaName by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showNewSchedaDialog = false },
-            title = { Text("Crea Nuova Scheda") },
+            title = { Text("Crea Nuova Scheda", fontSize = (18 * scale).sp) },
             text = {
                 OutlinedTextField(
                     value = newSchedaName,
-                    onValueChange = { newSchedaName = it },
-                    label = { Text("Nome scheda (es. Scheda C: Gambe)") },
+                    onValueChange = { newSchedaName = it.take(40) },
+                    label = { Text("Nome scheda (max 40)", fontSize = (12 * scale).sp) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -786,10 +578,308 @@ fun WorkoutApp() {
                             Toast.makeText(context, "Nuova scheda creata!", Toast.LENGTH_SHORT).show()
                         }
                     }
-                ) { Text("Crea") }
+                ) { Text("Crea", fontSize = (14 * scale).sp) }
             },
             dismissButton = {
-                OutlinedButton(onClick = { showNewSchedaDialog = false }) { Text("Annulla") }
+                OutlinedButton(onClick = { showNewSchedaDialog = false }) { Text("Annulla", fontSize = (14 * scale).sp) }
+            }
+        )
+    }
+
+    if (showRenameSchedaDialog) {
+        val currentSchedaName = schede.getOrElse(selectedTab.coerceAtMost((schede.size - 1).coerceAtLeast(0))) { "" }
+        var newSchedaName by remember { mutableStateOf(currentSchedaName) }
+
+        AlertDialog(
+            onDismissRequest = { showRenameSchedaDialog = false },
+            title = { Text("Rinomina Scheda", fontSize = (18 * scale).sp) },
+            text = {
+                OutlinedTextField(
+                    value = newSchedaName,
+                    onValueChange = { newSchedaName = it.take(40) },
+                    label = { Text("Nome scheda (max 40)", fontSize = (12 * scale).sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val trimmed = newSchedaName.trim()
+                        if (trimmed.isNotBlank() && trimmed != currentSchedaName) {
+                            val newList = exercises.map {
+                                if (it.scheda == currentSchedaName) it.copy(scheda = trimmed) else it
+                            }
+                            exercises = newList
+                            WorkoutCsvManager.saveExercises(context, newList)
+                            showRenameSchedaDialog = false
+                            Toast.makeText(context, "Scheda rinominata!", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                ) { Text("Salva", fontSize = (14 * scale).sp) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showRenameSchedaDialog = false }) { Text("Annulla", fontSize = (14 * scale).sp) }
+            }
+        )
+    }
+
+    exerciseToCopy?.let { exToCopy ->
+        AlertDialog(
+            onDismissRequest = { exerciseToCopy = null },
+            title = { Text("Incolla \"${exToCopy.nome}\" in:", fontWeight = FontWeight.Bold, fontSize = (18 * scale).sp) },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy((6 * scale).dp)
+                ) {
+                    schede.forEach { targetScheda ->
+                        OutlinedButton(
+                            onClick = {
+                                val existsInTarget = exercises.any {
+                                    it.scheda == targetScheda && it.nome.trim().equals(exToCopy.nome.trim(), ignoreCase = true)
+                                }
+                                val finalName = if (existsInTarget) "${exToCopy.nome} copia".take(70) else exToCopy.nome
+
+                                val pasted = exToCopy.copy(
+                                    id = "${targetScheda}_${System.currentTimeMillis()}",
+                                    scheda = targetScheda,
+                                    nome = finalName
+                                )
+                                val newList = exercises + pasted
+                                exercises = newList
+                                WorkoutCsvManager.saveExercises(context, newList)
+                                Toast.makeText(context, "\"$finalName\" incollato in \"$targetScheda\"", Toast.LENGTH_SHORT).show()
+                                exerciseToCopy = null
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("📋 $targetScheda", fontWeight = FontWeight.SemiBold, fontSize = (14 * scale).sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                Button(
+                    onClick = { exerciseToCopy = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                ) {
+                    Text("Annulla", fontSize = (14 * scale).sp)
+                }
+            }
+        )
+    }
+
+    if (showSavePresetDialog) {
+        var presetName by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showSavePresetDialog = false },
+            title = { Text("Salva nell'Archivio Locale", fontSize = (18 * scale).sp) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy((8 * scale).dp)) {
+                    Text("Assegna un nome al preset locale per poterlo ricaricare in seguito:", fontSize = (13 * scale).sp)
+                    OutlinedTextField(
+                        value = presetName,
+                        onValueChange = { presetName = it.take(40) },
+                        label = { Text("Nome preset (max 40)", fontSize = (12 * scale).sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val currentCsv = WorkoutCsvManager.toCsv(exercises)
+                        if (LocalWorkoutStore.savePreset(context, presetName, currentCsv)) {
+                            Toast.makeText(context, "Preset \"$presetName\" salvato!", Toast.LENGTH_SHORT).show()
+                            showSavePresetDialog = false
+                        } else {
+                            Toast.makeText(context, "Nome non valido o errore salvataggio", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                ) { Text("Salva", fontSize = (14 * scale).sp) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showSavePresetDialog = false }) { Text("Annulla", fontSize = (14 * scale).sp) }
+            }
+        )
+    }
+
+    if (showLoadPresetDialog) {
+        val savedPresets = remember { LocalWorkoutStore.listSavedPresets(context) }
+        AlertDialog(
+            onDismissRequest = { showLoadPresetDialog = false },
+            title = { Text("Carica dall'Archivio Locale", fontSize = (18 * scale).sp) },
+            text = {
+                if (savedPresets.isEmpty()) {
+                    Text("Nessun preset salvato in archivio.", fontSize = (13 * scale).sp)
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy((6 * scale).dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(max = (260 * scale).dp)
+                    ) {
+                        itemsIndexed(savedPresets) { _, name ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(
+                                    onClick = {
+                                        val content = LocalWorkoutStore.loadPreset(context, name)
+                                        if (content != null && WorkoutCsvManager.saveRawCsv(context, content)) {
+                                            exercises = WorkoutCsvManager.loadExercises(context)
+                                            selectedTab = 0
+                                            highlightedExerciseId = null
+                                            Toast.makeText(context, "Preset \"$name\" caricato!", Toast.LENGTH_SHORT).show()
+                                            showLoadPresetDialog = false
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("📂 $name", fontWeight = FontWeight.Bold, fontSize = (14 * scale).sp)
+                                }
+                                IconButton(
+                                    onClick = {
+                                        LocalWorkoutStore.deletePreset(context, name)
+                                        showLoadPresetDialog = false
+                                        Toast.makeText(context, "Preset eliminato", Toast.LENGTH_SHORT).show()
+                                    }
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Elimina preset", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size((20 * scale).dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                OutlinedButton(onClick = { showLoadPresetDialog = false }) { Text("Chiudi", fontSize = (14 * scale).sp) }
+            }
+        )
+    }
+
+    if (showConfirmExerciseChangeDialog) {
+        AlertDialog(
+            onDismissRequest = { showConfirmExerciseChangeDialog = false },
+            title = { Text("Attenzione", fontWeight = FontWeight.Bold, fontSize = (18 * scale).sp) },
+            text = { Text("Recupero in corso! Cambiando esercizio il timer si fermerà.", fontSize = (14 * scale).sp) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        highlightedExerciseId = pendingExerciseIdSelection
+                        showConfirmExerciseChangeDialog = false
+                    }
+                ) { Text("Procedi", fontSize = (14 * scale).sp) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showConfirmExerciseChangeDialog = false }) { Text("Annulla", fontSize = (14 * scale).sp) }
+            }
+        )
+    }
+
+    if (showCsvAccessConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showCsvAccessConfirmDialog = false },
+            title = { Text("Impostazioni & Archivio", fontSize = (18 * scale).sp) },
+            text = { Text("Vuoi accedere al menu di gestione dell'archivio locale e dei file CSV?", fontSize = (14 * scale).sp) },
+            confirmButton = {
+                Button(onClick = { showCsvAccessConfirmDialog = false; showMenu = true }) { Text("Accedi", fontSize = (14 * scale).sp) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showCsvAccessConfirmDialog = false }) { Text("Annulla", fontSize = (14 * scale).sp) }
+            }
+        )
+    }
+
+    if (showDeleteSchedaDialog) {
+        val currentSchedaName = schede.getOrElse(selectedTab.coerceAtMost((schede.size - 1).coerceAtLeast(0))) { "" }
+        AlertDialog(
+            onDismissRequest = { showDeleteSchedaDialog = false },
+            title = { Text("Conferma eliminazione scheda", fontSize = (18 * scale).sp) },
+            text = { Text("Sei sicuro di voler eliminare l'intera scheda \"$currentSchedaName\" e tutti gli esercizi contenuti?", fontSize = (14 * scale).sp) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val newList = exercises.filter { it.scheda != currentSchedaName }
+                        exercises = newList
+                        WorkoutCsvManager.saveExercises(context, newList)
+                        selectedTab = 0
+                        highlightedExerciseId = null
+                        showDeleteSchedaDialog = false
+                        Toast.makeText(context, "Scheda eliminata", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Elimina Scheda", fontSize = (14 * scale).sp) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showDeleteSchedaDialog = false }) { Text("Annulla", fontSize = (14 * scale).sp) }
+            }
+        )
+    }
+
+    exerciseToEdit?.let { ex ->
+        ExerciseFormDialog(
+            title = "Modifica Esercizio",
+            initialExercise = ex,
+            onDismiss = { exerciseToEdit = null },
+            onConfirm = { updated ->
+                val newList = exercises.map { if (it.id == updated.id) updated else it }
+                exercises = newList
+                WorkoutCsvManager.saveExercises(context, newList)
+                exerciseToEdit = null
+                Toast.makeText(context, "Esercizio aggiornato", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    exerciseToDelete?.let { ex ->
+        AlertDialog(
+            onDismissRequest = { exerciseToDelete = null },
+            title = { Text("Conferma eliminazione", fontSize = (18 * scale).sp) },
+            text = { Text("Sei sicuro di voler eliminare l'esercizio \"${ex.nome}\"?", fontSize = (14 * scale).sp) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val newList = exercises.filter { it.id != ex.id }
+                        if (highlightedExerciseId == ex.id) highlightedExerciseId = null
+                        exercises = newList
+                        WorkoutCsvManager.saveExercises(context, newList)
+                        exerciseToDelete = null
+                        Toast.makeText(context, "Esercizio eliminato", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Elimina", fontSize = (14 * scale).sp) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { exerciseToDelete = null }) { Text("Annulla", fontSize = (14 * scale).sp) }
+            }
+        )
+    }
+
+    if (showAddExerciseDialog) {
+        val currentScheda = schede.getOrElse(selectedTab.coerceAtMost((schede.size - 1).coerceAtLeast(0))) { "Scheda personale" }
+        val newEx = Exercise(
+            id = "${currentScheda}_${System.currentTimeMillis()}",
+            scheda = currentScheda,
+            nome = "",
+            muscoli = "",
+            target = "",
+            recupero = "90"
+        )
+        ExerciseFormDialog(
+            title = "Nuovo Esercizio ($currentScheda)",
+            initialExercise = newEx,
+            onDismiss = { showAddExerciseDialog = false },
+            onConfirm = { created ->
+                val newList = exercises + created
+                exercises = newList
+                WorkoutCsvManager.saveExercises(context, newList)
+                showAddExerciseDialog = false
+                Toast.makeText(context, "Esercizio aggiunto", Toast.LENGTH_SHORT).show()
             }
         )
     }
@@ -799,14 +889,14 @@ fun WorkoutApp() {
 
         AlertDialog(
             onDismissRequest = { showCsvEditorDialog = false },
-            title = { Text("Modifica Configurazione CSV", fontSize = 16.sp) },
+            title = { Text("Modifica Configurazione CSV", fontSize = (16 * scale).sp) },
             text = {
                 OutlinedTextField(
                     value = rawCsvText,
                     onValueChange = { rawCsvText = it },
-                    modifier = Modifier.fillMaxWidth().height(300.dp),
-                    label = { Text("scheda,nome,muscoli,target,recupero,kg,note") },
-                    textStyle = MaterialTheme.typography.bodySmall
+                    modifier = Modifier.fillMaxWidth().height((300 * scale).dp),
+                    label = { Text("scheda,nome,muscoli,target,recupero,kg,note", fontSize = (12 * scale).sp) },
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontSize = (12 * scale).sp)
                 )
             },
             confirmButton = {
@@ -822,10 +912,10 @@ fun WorkoutApp() {
                             Toast.makeText(context, "Errore nella sintassi CSV", Toast.LENGTH_LONG).show()
                         }
                     }
-                ) { Text("Salva") }
+                ) { Text("Salva", fontSize = (14 * scale).sp) }
             },
             dismissButton = {
-                OutlinedButton(onClick = { showCsvEditorDialog = false }) { Text("Annulla") }
+                OutlinedButton(onClick = { showCsvEditorDialog = false }) { Text("Annulla", fontSize = (14 * scale).sp) }
             }
         )
     }
